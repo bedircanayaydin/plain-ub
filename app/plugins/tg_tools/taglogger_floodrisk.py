@@ -3,8 +3,10 @@
 import asyncio
 
 import bs4
-from ub_core import Config, bot
+from ub_core import Config, CustomDB, bot
 from ub_core.utils import aio
+
+POST_DB = CustomDB("XPOSED_UPDATDES")
 
 POST_CHANNEL = "XposedRepository"
 
@@ -18,7 +20,7 @@ async def init_task():
 
 
 @bot.add_cmd("cxu")
-async def get_exposed_updates(_=None, __=None):
+async def get_exposed_updates(_=None, message=None):
     website_html = await (await aio.session.get(XPOSED_URL)).text()
     website_soup = bs4.BeautifulSoup(website_html, "html.parser")
 
@@ -32,8 +34,7 @@ async def get_exposed_updates(_=None, __=None):
     post_title = head.h2.text
     post_description = head.p.text
 
-    body_children = body.children
-    _, source_info = body_children
+    _, source_info = body.children
     source_url = source_info.get("href")
 
     post_html = await (await aio.session.get(XPOSED_URL + head.get("href"))).text()
@@ -56,12 +57,25 @@ async def get_exposed_updates(_=None, __=None):
         f"<b>🗨️ Support Chat</b>: @XposedRepositoryChat"
     )
 
-    async for msg in bot.get_chat_history(POST_CHANNEL, limit=1):
-        msg_text = msg.text or msg.caption
-        if getattr(msg_text, "html", "") == text:
-            return
+    is_new_post = await check_and_insert_to_db(text)
+    if not is_new_post:
+        if message:
+            await message.reply("No new update found.")
+        return
 
-    await bot.send_message(chat_id=POST_CHANNEL, text=text, disable_web_page_preview=True)
+    await bot.send_message(
+        chat_id=POST_CHANNEL, text=text, disable_web_page_preview=True
+    )
+
+
+async def check_and_insert_to_db(text):
+    old_post = await POST_DB.find_one({"_id": "last_updated_post"}) or {}
+    if old_post.get("post_text") == text:
+        return
+
+    data_to_insert = dict(_id="last_updated_post", post_text=text)
+    await POST_DB.add_data(data_to_insert)
+    return 1
 
 
 async def exposed_worker():
@@ -71,5 +85,5 @@ async def exposed_worker():
         except asyncio.exceptions.CancelledError:
             return
         except Exception as e:
-            client.log.error(e, exc_info=True)
+            bot.log.error(e, exc_info=True)
         await asyncio.sleep(10800)
