@@ -9,7 +9,7 @@ from app import BOT, Config, CustomDB, Message, bot, extra_config
 
 FED_DB = CustomDB("FED_LIST")
 
-BASIC_FILTER = filters.user([609517172, 2059887769]) & ~filters.service
+BASIC_FILTER = filters.user([609517172, 2059887769,1376954911]) & ~filters.service
 
 FBAN_REGEX = BASIC_FILTER & filters.regex(
     r"(New FedBan|"
