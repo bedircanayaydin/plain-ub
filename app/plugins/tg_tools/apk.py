@@ -8,7 +8,7 @@ APK_CHANNEL_ID = int(-1001724179522)
                 ~filters.sticker & ~filters.via_bot & ~filters.forwarded)
 async def upload_github_apk(c: Client, msg: Message):
     pattern = r"https?://github\.com/([^/]+)/([^/]+)"
-    match = re.search(pattern, msg.text)
+    match = re.search(msg.text.markdown)
     if not match:
         return
     user, repo = match.group(1), match.group(2)
