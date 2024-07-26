@@ -10,7 +10,7 @@ APK_CHANNEL_ID = int(-1001724179522)
 
 @bot.on_message(filters.chat(chats=-1001674072540) &
                 ~filters.sticker & ~filters.via_bot & ~filters.forwarded)
-async def upload_github_apk(c: BOT, msg: Message):
+async def upload_github_apk(c: BOT, message: Message):
     data = message.text or caption 
     if not data:
         return 
