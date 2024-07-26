@@ -1,6 +1,6 @@
 from pyrogram import filters
 from app import bot, BOT, Message
-from ub_core.utils aio
+from ub_core.utils import aio
 
 import re
 
