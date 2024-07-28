@@ -9,8 +9,8 @@ from pyrogram import filters
 from pyrogram.types import InputMediaDocument
 from ub_core.utils import Download, aio
 
-CHANNEL_ID = -1001512388271
-APK_CHANNEL_ID = -1001512388271
+CHANNEL_ID = -1001674072540
+APK_CHANNEL_ID = -1001724179522
 
 
 def get_urls(message):
