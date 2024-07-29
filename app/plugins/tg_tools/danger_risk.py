@@ -98,8 +98,8 @@ async def upload_apks(url):
             "\n\n"+
             "👥 Join\n📣 @FossDroidAndroid \n"+
             "💬 @FossDroid_AndroidChat \n"+
-            "🆙 @FossDroid_Android_apkrepo\n"+
-            "@Fossdroidupdate_Repo"
+            "🆙 @Fossdroidupdate_Repo\n"+
+            "@FossDroid_Android_apkrepo"
     )
 
     await bot.send_media_group(chat_id=APK_CHANNEL_ID, media=grouped_apks)
