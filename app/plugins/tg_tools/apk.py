@@ -9,9 +9,8 @@ from pyrogram import filters
 from pyrogram.types import InputMediaDocument
 from ub_core.utils import Download, aio
 
-CHANNEL_ID = -1001674072540
-APK_CHANNEL_ID = -1001724179522
-
+CHANNEL_ID = -1001512388271
+APK_CHANNEL_ID = -1001512388271
 
 def get_urls(message):
     data = message.text or message.caption
@@ -26,7 +25,6 @@ def get_urls(message):
     ]
     return urls + entity_urls
 
-
 @bot.on_message(
     filters.chat(chats=CHANNEL_ID)
     & ~filters.sticker
@@ -39,7 +37,6 @@ async def upload_github_apk(bot: BOT, message: Message):
         return
     for url in urls:
         await upload_apks(url)
-
 
 async def upload_apks(url):
     parsed_url = urlparse(url)
@@ -66,6 +63,10 @@ async def upload_apks(url):
 
     downloaded_files = await asyncio.gather(*to_dl_files)
 
+    if not downloaded_files:
+        print("No APK files found for this release.")
+        return
+
     grouped_apks = [
         InputMediaDocument(media=apk.full_path)
         for apk in downloaded_files
@@ -76,3 +77,4 @@ async def upload_apks(url):
     await bot.send_media_group(chat_id=APK_CHANNEL_ID, media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
+    
