@@ -9,7 +9,7 @@ from ub_core.utils import aio
 
 POST_DB = CustomDB("XPOSED_UPDATDES")
 
-POST_CHANNEL = "XposedRepository"
+POST_CHANNEL = "-1001552586568"
 
 XPOSED_URL = "https://modules.lsposed.org/"
 
@@ -67,7 +67,7 @@ async def get_exposed_updates(_=None, message=None):
     schedule_date = datetime.utcnow() + timedelta(seconds=10)
 
     await bot.send_message(
-        chat_id=POST_CHANNEL, text=text, disable_web_page_preview=True, schedule_date=schedule_date
+        chat_id=-1001552586568, text=text, disable_web_page_preview=True, schedule_date=schedule_date
     )
 
 
