@@ -13,8 +13,25 @@ from app import Message, bot
 
 logging.basicConfig(level=logging.INFO)
 
-CHANNEL_ID = -1001552586568
-APK_CHANNEL_ID = -1001836098073
+CHANNEL_ID = [-1001552586568, -1001674072540]
+APK_CHANNEL_ID = {
+    -1001836098073: -1001724179522
+    {-1001836098073
+        "id": , 
+        "info": 
+            "👥 Join\n📣 @XposedRepository \n"+
+            "💬 @XposedRepositoryChat \n"+
+            "@Xposedapkrepo"
+    }, 
+    -1001724179522:
+    {
+        "id": -1001724179522, 
+        "info": 
+            "👥 Join\n📣 @FossDroidAndroid \n"+
+            "💬 @FossDroid_AndroidChat \n"+
+            "@FossDroid_Android_apkrepo"
+    }, 
+    }
 
 def get_urls(message):
     data = message.text or message.caption
@@ -42,9 +59,9 @@ async def upload_github_apk(_, message: Message):
         logging.info("No URLs found.")
         return
     for url in urls:
-        await upload_apks(url)
+        await upload_apks(url, message)
 
-async def upload_apks(url):
+async def upload_apks(url, msg: Message):
     pattern = r"https?://github\.com/([^/]+)/([^/]+)"
     match = re.search(pattern, url)
     if not match:
@@ -96,11 +113,9 @@ async def upload_apks(url):
     grouped_apks[-1].caption = (
             body +
             "\n\n"+
-            "👥 Join\n📣 @XposedRepository \n"+
-            "💬 @XposedRepositoryChat \n"+
-            "@Xposedapkrepo"
+            APK_CHANNEL_ID[msg.chat.id]["info"]
     )
 
-    await bot.send_media_group(chat_id=APK_CHANNEL_ID, media=grouped_apks)
+    await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
