@@ -1,6 +1,7 @@
 # Xposed Feed Plugin by Ryuk.
 
 import asyncio
+from datetime import datetime, timedelta
 
 import bs4
 from ub_core import Config, CustomDB, bot
@@ -50,8 +51,8 @@ async def get_exposed_updates(_=None, message=None):
             break
 
     text = (
-        f"<b>📦 Module</b>: <code>{post_title}</code> \n\n"
-        f"<b>✍️ Description</b>: <code>{post_description}</code> \n\n"
+        f"<b>📦 Module</b>: {post_title} \n\n"
+        f"<b>✍️ Description</b>: {post_description} \n\n"
         f"🔗 <code>{version}</code>:\n"
         f'<a href="{url}">Download</a> | <a href="{source_url}">Source</a>\n\n'
         f"<b>🗨️ Support Chat</b>: @XposedRepositoryChat"
@@ -63,8 +64,10 @@ async def get_exposed_updates(_=None, message=None):
             await message.reply("No new update found.")
         return
 
+    schedule_date = datetime.utcnow() + timedelta(seconds=10)
+
     await bot.send_message(
-        chat_id=POST_CHANNEL, text=text, disable_web_page_preview=True
+        chat_id=POST_CHANNEL, text=text, disable_web_page_preview=True, schedule_date=schedule_date
     )
 
 
