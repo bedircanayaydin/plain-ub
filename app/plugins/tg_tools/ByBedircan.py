@@ -117,7 +117,7 @@ async def upload_apks(url, msg: Message):
         logging.info("No APK files found for this release.")
         return
 
-    MAX_CAPTION_LENGTH = 1024  # Telegram'ın izin verdiği maksimum başlık uzunluğu
+    MAX_CAPTION_LENGTH = 1024
 
     def truncate_caption(caption, max_length=MAX_CAPTION_LENGTH):
         if len(caption) > max_length:
@@ -138,7 +138,7 @@ async def periodic_task():
             messages = await bot.get_chat_history(channel_id, limit=10)
             for message in messages:
                 await upload_github_apk(bot, message)
-        await asyncio.sleep(3600)  # 1 saatlik aralıklarla kontrol et
+        await asyncio.sleep(3600)
 
 async def main():
     await bot.start()
