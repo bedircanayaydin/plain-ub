@@ -31,14 +31,20 @@ APK_CHANNEL_ID = {
             "💬 @FossDroid_AndroidChat \n"+
             "@FossDroid_Android_apkrepo"
     }, 
-    }
+}
 
 def get_urls(message):
     data = message.text or message.caption
     if not data:
         logging.info("No data found.")
-        return
-    urls = [x for x in data.split() if "github.com" in x]
+        return []
+    
+    url_pattern = re.compile(
+        r'(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\((?:[^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\((?:[^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:\'".,<>?«»“”‘’]))'
+    )
+    urls = re.findall(url_pattern, data)
+    urls = [url[0] for url in urls]  # Regex gruplarını düzleştir
+    
     entities = message.entities or []
     entity_urls = [
         entity.url
