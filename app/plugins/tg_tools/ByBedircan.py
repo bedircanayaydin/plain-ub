@@ -15,8 +15,8 @@ logging.basicConfig(level=logging.INFO)
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
-    -1001836098073:
-    {-1001836098073
+    -1001836098073:-1001724179522
+    {
         "id": -1001836098073, 
         "info": 
             "👥 Join\n📣 @XposedRepository \n"+
