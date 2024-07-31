@@ -44,7 +44,7 @@ def get_urls(message):
         r'(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\((?:[^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\((?:[^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:\'".,<>?«»“”‘’]))'
     )
     urls = re.findall(url_pattern, data)
-    urls = [url[0] for url in urls]  # Flatten regex groups
+    urls = [url[0] for url in urls]
     
     entities = message.entities or []
     entity_urls = [
