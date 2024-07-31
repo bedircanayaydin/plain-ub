@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import time
+import requests
 
 from pyrogram import filters
 from pyrogram.types import InputMediaDocument
@@ -43,13 +44,13 @@ def get_urls(message):
         r'(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\((?:[^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\((?:[^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:\'".,<>?«»“”‘’]))'
     )
     urls = re.findall(url_pattern, data)
-    urls = [url[0] for url in urls]  # Regex gruplarını düzleştir
+    urls = [url[0] for url in urls]  # Flatten regex groups
     
     entities = message.entities or []
     entity_urls = [
         entity.url
         for entity in entities
-        if (isinstance(entity.url, str) and "github.com" in entity.url)
+        if isinstance(entity.url, str)
     ]
     return urls + entity_urls
 
@@ -116,12 +117,34 @@ async def upload_apks(url, msg: Message):
         logging.info("No APK files found for this release.")
         return
 
-    grouped_apks[-1].caption = (
-            body +
-            "\n\n"+
-            APK_CHANNEL_ID[msg.chat.id]["info"]
+    MAX_CAPTION_LENGTH = 1024  # Telegram'ın izin verdiği maksimum başlık uzunluğu
+
+    def truncate_caption(caption, max_length=MAX_CAPTION_LENGTH):
+        if len(caption) > max_length:
+            return caption[:max_length - 3] + "..."
+        return caption
+
+    grouped_apks[-1].caption = truncate_caption(
+        body + "\n\n" + APK_CHANNEL_ID[msg.chat.id]["info"]
     )
 
     await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
+
+async def periodic_task():
+    while True:
+        for channel_id in CHANNEL_ID:
+            messages = await bot.get_chat_history(channel_id, limit=10)
+            for message in messages:
+                await upload_github_apk(bot, message)
+        await asyncio.sleep(3600)  # 1 saatlik aralıklarla kontrol et
+
+async def main():
+    await bot.start()
+    while True:
+        await periodic_task()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+    
