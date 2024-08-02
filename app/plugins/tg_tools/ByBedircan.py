@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 import re
 import shutil
@@ -11,41 +10,27 @@ from ub_core.utils import Download, aio
 
 from app import Message, bot
 
-logging.basicConfig(level=logging.INFO)
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
     -1001552586568:
-    {
-        "id": -1001836098073, 
-        "info": 
-            "👥 Join\n📣 @XposedRepository \n"+
-            "💬 @XposedRepositoryChat \n"+
-            "@Xposedapkrepo"
-    }, 
+        {
+            "id": -1001836098073,
+            "info":
+                "👥 Join\n📣 @XposedRepository \n"+
+                "💬 @XposedRepositoryChat \n"+
+                "@Xposedapkrepo"
+        },
     -1001674072540:
-    {
-        "id": -1001724179522, 
-        "info": 
-            "👥 Join\n📣 @FossDroidAndroid \n"+
-            "💬 @FossDroid_AndroidChat \n"+
-            "@FossDroid_Android_apkrepo"
-    }, 
-    }
+        {
+            "id": -1001724179522,
+            "info":
+                "👥 Join\n📣 @FossDroidAndroid \n"+
+                "💬 @FossDroid_AndroidChat \n"+
+                "@FossDroid_Android_apkrepo"
+        },
+}
 
-def get_urls(message):
-    data = message.text or message.caption
-    if not data:
-        logging.info("No data found.")
-        return
-    urls = [x for x in data.split() if "github.com" in x]
-    entities = message.entities or []
-    entity_urls = [
-        entity.url
-        for entity in entities
-        if (isinstance(entity.url, str) and "github.com" in entity.url)
-    ]
-    return urls + entity_urls
 
 @bot.on_message(
     filters.chat(chats=CHANNEL_ID)
@@ -53,31 +38,24 @@ def get_urls(message):
     & ~filters.via_bot
     & ~filters.forwarded
 )
-async def upload_github_apk(_, message: Message):
-    urls = get_urls(message)
-    if not urls:
-        logging.info("No URLs found.")
-        return
-    for url in urls:
-        await upload_apks(url, message)
-
-async def upload_apks(url, msg: Message):
-    pattern = r"https?://github\.com/([^/]+)/([^/]+)"
-    match = re.search(pattern, url)
+async def upload_github_apk(_, msg: Message):
+    data = msg.text or msg.caption
+    pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
+    match = re.search(pattern, data.markdown)
     if not match:
-        logging.info("Invalid URL.")
+        # no github link so ignore
         return
     user, repo = match.group(1), match.group(2)
 
     if not (user and repo):
-        logging.info("Invalid URL.")
+        await bot.log_text(f"Invalid URL.\nMessage: {msg.link}", type="info")
         return
 
     url = f"https://api.github.com/repos/{user}/{repo}/releases/latest"
 
     release_data = await aio.get_json(url)
     if not release_data:
-        logging.info("No release data found.")
+        await bot.log_text(f"No release data found.\nMessage: {msg.link}", type="info")
         return
 
     assets = release_data.get("assets", [])
@@ -98,7 +76,7 @@ async def upload_apks(url, msg: Message):
     downloaded_files = await asyncio.gather(*to_dl_files)
 
     if not downloaded_files:
-        logging.info("No APK files found for this release.")
+        await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
     grouped_apks = [
@@ -107,7 +85,7 @@ async def upload_apks(url, msg: Message):
     ]
 
     if not grouped_apks:
-        logging.info("No APK files found for this release.")
+        await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
     grouped_apks[-1].caption = (
