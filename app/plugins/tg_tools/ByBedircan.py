@@ -31,7 +31,7 @@ APK_CHANNEL_ID = {
         },
 }
 
-if bot.bot.is_bot:
+if bot.bot and bot.bot.is_bot:
     @bot.bot.on_message(
         filters.chat(chats=CHANNEL_ID)
         & ~filters.sticker
@@ -39,7 +39,7 @@ if bot.bot.is_bot:
         & ~filters.forwarded
     )
     async def _upload_github_apk(_, msg: Message):
-        return upload_github_apk(msg)
+        return await upload_github_apk(msg)
 
 
 async def upload_github_apk(msg: Message):
