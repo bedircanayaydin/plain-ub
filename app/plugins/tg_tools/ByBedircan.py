@@ -11,19 +11,19 @@ from ub_core.utils import Download, aio
 from app import Message, bot
 
 
-CHANNEL_ID = [-1001552586568, -1001674072540]
+CHANNEL_ID = [-1001743931897, -1001743931897]
 APK_CHANNEL_ID = {
-    -1001552586568:
+    -1001743931897:
         {
-            "id": -1001836098073,
+            "id": -1001743931897,
             "info":
                 "👥 Join\n📣 @XposedRepository \n"+
                 "💬 @XposedRepositoryChat \n"+
                 "@Xposedapkrepo"
         },
-    -1001674072540:
+    -1001743931897:
         {
-            "id": -1001724179522,
+            "id": -1001743931897,
             "info":
                 "👥 Join\n📣 @FossDroidAndroid \n"+
                 "💬 @FossDroid_AndroidChat \n"+
@@ -31,14 +31,18 @@ APK_CHANNEL_ID = {
         },
 }
 
+if bot.bot.is_bot:
+    @bot.bot.on_message(
+        filters.chat(chats=CHANNEL_ID)
+        & ~filters.sticker
+        & ~filters.via_bot
+        & ~filters.forwarded
+    )
+    async def _upload_github_apk(_, msg: Message):
+        return upload_github_apk(msg)
 
-@bot.on_message(
-    filters.chat(chats=CHANNEL_ID)
-    & ~filters.sticker
-    & ~filters.via_bot
-    & ~filters.forwarded
-)
-async def upload_github_apk(_, msg: Message):
+
+async def upload_github_apk(msg: Message):
     data = msg.text or msg.caption
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
     match = re.search(pattern, data.markdown)
