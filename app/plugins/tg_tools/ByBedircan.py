@@ -58,15 +58,16 @@ async def upload_github_apk(_, msg: Message):
         await bot.log_text(f"No release data found.\nMessage: {msg.link}", type="info")
         return
 
+    tag_name = release_data.get("name", "")
     assets = release_data.get("assets", [])
     body = release_data.get("body", "")
 
     to_dl_files = []
     dl_path = os.path.join("downloads", str(time.time()))
 
-    if asset["name"].endswith(".apk"):
-change to 
-if asset["name"].lower().endswith(".apk"):
+    for asset in assets or []:
+        if asset["name"].lower().endswith(".apk"):
+            apk_link, name = asset["browser_download_url"], asset["name"]
             if apk_link:
                 dl_obj = await Download.setup(
                     url=apk_link, path=dl_path, custom_file_name=name
@@ -89,6 +90,9 @@ if asset["name"].lower().endswith(".apk"):
         return
 
     grouped_apks[-1].caption = (
+            f"📣 New release for **{repo}**\n"+
+            f"Version: `{tag_name}`\n\n"+
+
             body +
             "\n\n"+
             APK_CHANNEL_ID[msg.chat.id]["info"]
