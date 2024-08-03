@@ -11,19 +11,19 @@ from ub_core.utils import Download, aio
 from app import Message, bot
 
 
-CHANNEL_ID = [-1001743931897, -1001743931897]
+CHANNEL_ID = [[-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
-    -1001743931897:
+    -1001552586568:
         {
-            "id": -1001743931897,
+            "id": -1001836098073,
             "info":
                 "👥 Join\n📣 @XposedRepository \n"+
                 "💬 @XposedRepositoryChat \n"+
                 "@Xposedapkrepo"
         },
-    -1001743931897:
+    -1001674072540:
         {
-            "id": -1001743931897,
+            "id": -1001724179522,
             "info":
                 "👥 Join\n📣 @FossDroidAndroid \n"+
                 "💬 @FossDroid_AndroidChat \n"+
@@ -94,8 +94,9 @@ async def upload_github_apk(msg: Message):
         return
 
     grouped_apks[-1].caption = (
-            f"📣 New release for **{repo}**\n"+
-            f"Version: `{tag_name}`\n\n"+
+            f"📣 New release for {repo}\n"+
+            f"Version: {tag
+_name}\n\n"+
 
             body +
             "\n\n"+
