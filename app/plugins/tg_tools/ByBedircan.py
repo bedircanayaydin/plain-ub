@@ -95,9 +95,7 @@ async def upload_github_apk(msg: Message):
 
     grouped_apks[-1].caption = (
             f"📣 New release for {repo}\n"+
-            f"Version: {tag
-_name}\n\n"+
-
+            f"Version: {tag_name}\n\n"+
             body +
             "\n\n"+
             APK_CHANNEL_ID[msg.chat.id]["info"]
