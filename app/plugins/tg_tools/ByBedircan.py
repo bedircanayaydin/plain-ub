@@ -64,9 +64,9 @@ async def upload_github_apk(_, msg: Message):
     to_dl_files = []
     dl_path = os.path.join("downloads", str(time.time()))
 
-    for asset in assets or []:
-        if asset["name"].endswith(".apk"):
-            apk_link, name = asset["browser_download_url"], asset["name"]
+    if asset["name"].endswith(".apk"):
+change to 
+if asset["name"].lower().endswith(".apk"):
             if apk_link:
                 dl_obj = await Download.setup(
                     url=apk_link, path=dl_path, custom_file_name=name
