@@ -29,6 +29,7 @@ APK_CHANNEL_ID = {
                 "@FossDroid_Android_apkrepo"
         },
 }
+
 if bot.bot and bot.bot.is_bot:
     @bot.bot.on_message(
         filters.chat(chats=CHANNEL_ID)
@@ -94,12 +95,16 @@ async def upload_github_apk(msg: Message):
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
+    if msg.chat.id not in APK_CHANNEL_ID:
+        await bot.log_text(f"Chat ID {msg.chat.id} not found in APK_CHANNEL_ID.\nMessage: {msg.link}", type="info")
+        return
+
+    info = APK_CHANNEL_ID[msg.chat.id]['info']
     changelog = f"{body}\n\n" if body else ""
     caption_base = (
         f"📣 New release for {repo}\n"
         f"Version: {tag_name}\n\n"
     )
-    info = APK_CHANNEL_ID[msg.chat.id]['info']
     max_changelog_length = 1024 - len(caption_base) - len(info)
 
     if len(changelog) > max_changelog_length:
