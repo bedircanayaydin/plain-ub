@@ -12,18 +12,25 @@ from ub_core.utils import Download, aio
 from app import Message, bot
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(name)
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
     -1001552586568: {
         "id": -1001836098073,
-        "info": "👥 Join\n📣 @XposedRepository \n💬 @XposedRepositoryChat \n@Xposedapkrepo"
-    },
-    -1001674072540: {
-        "id": -1001724179522,
-        "info": "👥 Join\n📣 @FossDroidAndroid \n💬 @FossDroid_AndroidChat \n@FossDroid_Android_apkrepo"
-    },
+        "info":
+                "👥 Join\n📣 @XposedRepository \n"+
+                "💬 @XposedRepositoryChat \n"+
+                "@Xposedapkrepo"
+        },
+    -1001743931897:
+        {
+            "id": -1001743931897,
+            "info":
+                "👥 Join\n📣 @FossDroidAndroid \n"+
+                "💬 @FossDroid_AndroidChat \n"+
+                "@FossDroid_Android_apkrepo"
+        },
 }
 
 if bot.bot and bot.bot.is_bot:
@@ -106,4 +113,3 @@ async def upload_github_apk(msg: Message):
 
     await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
     shutil.rmtree(dl_path, ignore_errors=True)
-                                                   
