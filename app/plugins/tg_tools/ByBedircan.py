@@ -12,7 +12,7 @@ from app import Message, bot
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
-    -1001836098073:
+    -1001552586568:
         {
             "id": -1001836098073,
             "info":
@@ -20,7 +20,7 @@ APK_CHANNEL_ID = {
                 "💬 @XposedRepositoryChat \n"+
                 "@Xposedapkrepo"
         },
-    -1001724179522:
+    -1001674072540:
         {
             "id": -1001724179522,
             "info":
