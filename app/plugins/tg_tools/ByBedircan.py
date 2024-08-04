@@ -65,10 +65,8 @@ async def upload_github_apk(msg: Message):
     tag_name = release_data.get("name", "")
     assets = release_data.get("assets", [])
     body = release_data.get("body", "")
-
-    changelog_link = f"https://github.com/{user}/{repo}/releases/latest"
-    if len(body) > 500:
-        body = body[:500] + f"... Read more"
+    
+    changelog = body[:1024] + "...\nFull Changelog" if len(body) > 1024 else body
 
     to_dl_files = []
     dl_path = os.path.join("downloads", str(time.time()))
@@ -96,16 +94,17 @@ async def upload_github_apk(msg: Message):
     if not grouped_apks:
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
+        
+    if msg.chat.id in APK_CHANNEL_ID:
+        grouped_apks[-1].caption = (
+                f"📣 New release for **{repo}**\n"+
+                f"Version: `{tag_name}`\n\n"+
 
-    grouped_apks[-1].caption = (
-            f"📣 New release for **{repo}**\n"+
-            f"Version: `{tag_name}`\n\n"+
+                changelog +
+                "\n\n"+
+                APK_CHANNEL_ID[msg.chat.id]["info"]
+        )
 
-            body +
-            "\n\n"+
-            APK_CHANNEL_ID[msg.chat.id]["info"]
-    )
-
-    await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
+        await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
