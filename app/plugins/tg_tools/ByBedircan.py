@@ -3,7 +3,6 @@ import os
 import re
 import shutil
 import time
-import logging
 
 from pyrogram import filters
 from pyrogram.types import InputMediaDocument
@@ -15,19 +14,12 @@ CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
     -1001552586568: {
         "id": -1001836098073,
-        "info":
-                "👥 Join\n📣 @XposedRepository \n"+
-                "💬 @XposedRepositoryChat \n"+
-                "@Xposedapkrepo"
-        },
-    -1001674072540:
-        {
-            "id": -1001724179522,
-            "info":
-                "👥 Join\n📣 @FossDroidAndroid \n"+
-                "💬 @FossDroid_AndroidChat \n"+
-                "@FossDroid_Android_apkrepo"
-        },
+        "info": "👥 Join\n📣 @XposedRepository \n💬 @XposedRepositoryChat \n@Xposedapkrepo"
+    },
+    -1001674072540: {
+        "id": -1001724179522,
+        "info": "👥 Join\n📣 @FossDroidAndroid \n💬 @FossDroid_AndroidChat \n@FossDroid_Android_apkrepo"
+    },
 }
 
 if bot.bot and bot.bot.is_bot:
@@ -44,9 +36,9 @@ if bot.bot and bot.bot.is_bot:
 async def upload_github_apk(msg: Message):
     data = msg.text or msg.caption
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
-    match = re.search(pattern, data.markdown)
+    match = re.search(pattern, data)
     if not match:
-        logger.info("No GitHub link found in the message.")
+        print("No GitHub link found in the message.")
         return
 
     user, repo = match.group(1), match.group(2)
@@ -85,27 +77,33 @@ async def upload_github_apk(msg: Message):
     grouped_apks = []
     for apk in downloaded_files:
         if isinstance(apk, Exception):
-            logger.error(f"Error downloading APK: {apk}")
+            print(f"Error downloading APK: {apk}")
             continue
         if apk and apk.full_path:
             grouped_apks.append(InputMediaDocument(media=apk.full_path))
         else:
-            logger.error("Downloaded APK is None or has no full_path")
+            print("Downloaded APK is None or has no full_path")
 
     if not grouped_apks:
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
     changelog = f"{body}\n\n" if body else ""
-    if len(changelog) > 1024:
-        changelog = changelog[:1023] + "..."
+    caption_base = (
+        f"📣 New release for {repo}\n"
+        f"Version: {tag_name}\n\n"
+    )
+    info = APK_CHANNEL_ID[msg.chat.id]['info']
+    max_changelog_length = 1024 - len(caption_base) - len(info)
+
+    if len(changelog) > max_changelog_length:
+        changelog = changelog[:max_changelog_length] + "..."
         changelog += f"\n\nFor full changelog, visit: https://github.com/{user}/{repo}/releases/latest"
 
     caption = (
-        f"📣 New release for {repo}\n"
-        f"Version: {tag_name}\n\n"
+        f"{caption_base}"
         f"{changelog}"
-        f"{APK_CHANNEL_ID[msg.chat.id]['info']}"
+        f"{info}"
     )
 
     grouped_apks[-1].caption = caption
