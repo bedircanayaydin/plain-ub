@@ -11,7 +11,6 @@ from ub_core.utils import Download, aio
 
 from app import Message, bot
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -94,10 +93,9 @@ async def upload_github_apk(msg: Message):
         f"{body}\n\n"
         f"{APK_CHANNEL_ID[msg.chat.id]['info']}"
     )
-
-    # Truncate caption if it exceeds Telegram's limit
     if len(caption) > 1024:
         caption = caption[:1024] + "..."
+        caption += f"\n\nFor full changelog, visit: https://github.com/{user}/{repo}/releases/latest"
 
     grouped_apks[-1].caption = caption
 
