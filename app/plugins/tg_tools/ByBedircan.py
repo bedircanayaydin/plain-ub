@@ -96,15 +96,17 @@ async def upload_github_apk(msg: Message):
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
+    changelog = f"{body}\n\n" if body else ""
+    if len(changelog) > 1024:
+        changelog = changelog[:1024] + "..."
+        changelog += f"\n\nFor full changelog, visit: https://github.com/{user}/{repo}/releases/latest"
+
     caption = (
         f"📣 New release for {repo}\n"
         f"Version: {tag_name}\n\n"
-        f"{body}\n\n"
+        f"{changelog}"
         f"{APK_CHANNEL_ID[msg.chat.id]['info']}"
     )
-    if len(caption) > 1024:
-        caption = caption[:1024] + "..."
-        caption += f"\n\nFor full changelog, visit: https://github.com/{user}/{repo}/releases/latest"
 
     grouped_apks[-1].caption = caption
 
