@@ -12,7 +12,9 @@ from app import Message, bot
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
-    "id": -1001836098073,
+    -1001552586568:
+        {
+            "id": -1001836098073,
             "info":
                 "👥 Join\n📣 @XposedRepository \n"+
                 "💬 @XposedRepositoryChat \n"+
@@ -25,9 +27,8 @@ APK_CHANNEL_ID = {
                 "👥 Join\n📣 @FossDroidAndroid \n"+
                 "💬 @FossDroid_AndroidChat \n"+
                 "@FossDroid_Android_apkrepo"
-    },
+        },
 }
-
 if bot.bot and bot.bot.is_bot:
     @bot.bot.on_message(
         filters.chat(chats=CHANNEL_ID)
