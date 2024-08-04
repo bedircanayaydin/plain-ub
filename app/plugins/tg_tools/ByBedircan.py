@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import time
+import logging
 
 from pyrogram import filters
 from pyrogram.types import InputMediaDocument
@@ -10,25 +11,20 @@ from ub_core.utils import Download, aio
 
 from app import Message, bot
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
-    -1001552586568:
-        {
-            "id": -1001836098073,
-            "info":
-                "👥 Join\n📣 @XposedRepository \n"+
-                "💬 @XposedRepositoryChat \n"+
-                "@Xposedapkrepo"
-        },
-    -1001674072540:
-        {
-            "id": -1001724179522,
-            "info":
-                "👥 Join\n📣 @FossDroidAndroid \n"+
-                "💬 @FossDroid_AndroidChat \n"+
-                "@FossDroid_Android_apkrepo"
-        },
+    -1001552586568: {
+        "id": -1001836098073,
+        "info": "👥 Join\n📣 @XposedRepository \n💬 @XposedRepositoryChat \n@Xposedapkrepo"
+    },
+    -1001674072540: {
+        "id": -1001724179522,
+        "info": "👥 Join\n📣 @FossDroidAndroid \n💬 @FossDroid_AndroidChat \n@FossDroid_Android_apkrepo"
+    },
 }
 
 if bot.bot and bot.bot.is_bot:
@@ -39,7 +35,7 @@ if bot.bot and bot.bot.is_bot:
         & ~filters.forwarded
     )
     async def _upload_github_apk(_, msg: Message):
-        return await upload_github_apk(msg)
+        await upload_github_apk(msg)
 
 
 async def upload_github_apk(msg: Message):
@@ -47,16 +43,15 @@ async def upload_github_apk(msg: Message):
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
     match = re.search(pattern, data.markdown)
     if not match:
-        # no github link so ignore
+        logger.info("No GitHub link found in the message.")
         return
-    user, repo = match.group(1), match.group(2)
 
+    user, repo = match.group(1), match.group(2)
     if not (user and repo):
         await bot.log_text(f"Invalid URL.\nMessage: {msg.link}", type="info")
         return
 
     url = f"https://api.github.com/repos/{user}/{repo}/releases/latest"
-
     release_data = await aio.get_json(url)
     if not release_data:
         await bot.log_text(f"No release data found.\nMessage: {msg.link}", type="info")
@@ -78,29 +73,33 @@ async def upload_github_apk(msg: Message):
                 )
                 to_dl_files.append(dl_obj.download())
 
-    downloaded_files = await asyncio.gather(*to_dl_files)
+    downloaded_files = await asyncio.gather(*to_dl_files, return_exceptions=True)
 
-    if not downloaded_files:
+    if not downloaded_files or any(isinstance(f, Exception) for f in downloaded_files):
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
     grouped_apks = [
         InputMediaDocument(media=apk.full_path)
-        for apk in downloaded_files
+        for apk in downloaded_files if not isinstance(apk, Exception)
     ]
 
     if not grouped_apks:
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
-    grouped_apks[-1].caption = (
-            f"📣 New release for {repo}\n"+
-            f"Version: {tag_name}\n\n"+
-            body +
-            "\n\n"+
-            APK_CHANNEL_ID[msg.chat.id]["info"]
+    caption = (
+        f"📣 New release for {repo}\n"
+        f"Version: {tag_name}\n\n"
+        f"{body}\n\n"
+        f"{APK_CHANNEL_ID[msg.chat.id]['info']}"
     )
 
-    await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
+    # Truncate caption if it exceeds Telegram's limit
+    if len(caption) > 1024:
+        caption = caption[:1024] + "..."
 
+    grouped_apks[-1].caption = caption
+
+    await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
     shutil.rmtree(dl_path, ignore_errors=True)
