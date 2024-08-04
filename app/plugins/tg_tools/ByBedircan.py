@@ -78,10 +78,15 @@ async def upload_github_apk(msg: Message):
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
-    grouped_apks = [
-        InputMediaDocument(media=apk.full_path)
-        for apk in downloaded_files if not isinstance(apk, Exception)
-    ]
+    grouped_apks = []
+    for apk in downloaded_files:
+        if isinstance(apk, Exception):
+            logger.error(f"Error downloading APK: {apk}")
+            continue
+        if apk and apk.full_path:
+            grouped_apks.append(InputMediaDocument(media=apk.full_path))
+        else:
+            logger.error("Downloaded APK is None or has no full_path")
 
     if not grouped_apks:
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
@@ -101,3 +106,4 @@ async def upload_github_apk(msg: Message):
 
     await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
     shutil.rmtree(dl_path, ignore_errors=True)
+                                                   
