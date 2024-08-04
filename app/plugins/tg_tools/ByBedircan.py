@@ -109,4 +109,14 @@ async def upload_github_apk(msg: Message):
     grouped_apks[-1].caption = caption
 
     await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
+
+    # Send the full changelog as a separate message if it's too long
+    if len(body) > max_changelog_length:
+        full_changelog_message = (
+            f"📣 Full changelog for {repo} version {tag_name}:\n\n"
+            f"{body}\n\n"
+            f"For more details, visit: https://github.com/{user}/{repo}/releases/latest"
+        )
+        await bot.send_message(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], text=full_changelog_message)
+
     shutil.rmtree(dl_path, ignore_errors=True)
