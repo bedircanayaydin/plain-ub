@@ -98,7 +98,7 @@ async def upload_github_apk(msg: Message):
 
     changelog = f"{body}\n\n" if body else ""
     if len(changelog) > 1024:
-        changelog = changelog[:1024] + "..."
+        changelog = changelog[:1023] + "..."
         changelog += f"\n\nFor full changelog, visit: https://github.com/{user}/{repo}/releases/latest"
 
     caption = (
