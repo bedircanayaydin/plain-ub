@@ -11,9 +11,6 @@ from ub_core.utils import Download, aio
 
 from app import Message, bot
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(name)
-
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
     -1001552586568: {
@@ -23,9 +20,9 @@ APK_CHANNEL_ID = {
                 "💬 @XposedRepositoryChat \n"+
                 "@Xposedapkrepo"
         },
-    -1001743931897:
+    -1001674072540:
         {
-            "id": -1001743931897,
+            "id": -1001724179522,
             "info":
                 "👥 Join\n📣 @FossDroidAndroid \n"+
                 "💬 @FossDroid_AndroidChat \n"+
