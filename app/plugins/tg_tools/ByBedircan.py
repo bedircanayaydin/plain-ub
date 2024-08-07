@@ -105,7 +105,6 @@ async def upload_github_apk(msg: Message):
 
     caption = (
         f"{caption_base}"
-        f"{changelog}"
         f"{info}"
     )
 
