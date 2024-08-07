@@ -13,7 +13,7 @@ from app import Message, bot
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
-    -1001836098073:
+    -1001552586568:
         {
             "id": -1001836098073,
             "info":
@@ -21,7 +21,7 @@ APK_CHANNEL_ID = {
                 "💬 @XposedRepositoryChat \n"+
                 "@Xposedapkrepo"
         },
-    -1001724179522:
+    -1001674072540:
         {
             "id": -1001724179522,
             "info":
@@ -47,7 +47,7 @@ async def upload_github_apk(msg: Message):
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
     match = re.search(pattern, data.markdown)
     if not match:
-        
+        # no github link so ignore
         return
     user, repo = match.group(1), match.group(2)
 
@@ -65,8 +65,6 @@ async def upload_github_apk(msg: Message):
     tag_name = release_data.get("name", "")
     assets = release_data.get("assets", [])
     body = release_data.get("body", "")
-    
-    changelog = body[:1024] + "...\nFull Changelog" if len(body) > 1024 else body
 
     to_dl_files = []
     dl_path = os.path.join("downloads", str(time.time()))
@@ -94,17 +92,16 @@ async def upload_github_apk(msg: Message):
     if not grouped_apks:
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
-        
-    if msg.chat.id in APK_CHANNEL_ID:
-        grouped_apks[-1].caption = (
-                f"📣 New release for **{repo}**\n"+
-                f"Version: `{tag_name}`\n\n"+
 
-                changelog +
-                "\n\n"+
-                APK_CHANNEL_ID[msg.chat.id]["info"]
-        )
+    grouped_apks[-1].caption = (
+            f"📣 New release for **{repo}**\n"+
+            f"Version: `{tag_name}`\n\n"+
 
-        await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
+            body +
+            "\n\n"+
+            APK_CHANNEL_ID[msg.chat.id]["info"]
+    )
+
+    await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
