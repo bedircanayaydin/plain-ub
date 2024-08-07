@@ -29,6 +29,7 @@ APK_CHANNEL_ID = {
                 "@FossDroid_Android_apkrepo"
         },
 }
+
 if bot.bot and bot.bot.is_bot:
     @bot.bot.on_message(
         filters.chat(chats=CHANNEL_ID)
@@ -101,11 +102,15 @@ async def upload_github_apk(msg: Message):
         f"Version: {tag_name}\n\n"
     )
     info = APK_CHANNEL_ID[msg.chat.id]['info']
-    max_changelog_length = 1024 - len(caption_base) - len(info)
+    max_changelog_length = 400 - len(caption_base) - len(info)
+
+    if len(changelog) > max_changelog_length:
+        changelog = changelog[:max_changelog_length] + "..."
+        changelog += f"\n\nFor full changelog, visit: https://github.com/{user}/{repo}/releases/latest"
 
     caption = (
         f"{caption_base}"
-        f"{Changelog}"
+        f"{changelog}"
         f"{info}"
     )
 
