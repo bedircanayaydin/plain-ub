@@ -117,6 +117,7 @@ async def upload_github_apk(msg: Message):
 
     await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
 
+    # Send the full changelog as a separate message if it's too long
     if len(body) > max_changelog_length:
         full_changelog_message = (
             f"📣 Full changelog for {repo} version {tag_name}:\n\n"
