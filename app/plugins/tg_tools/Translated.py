@@ -66,14 +66,16 @@ if bot.bot and bot.bot.is_bot:
         & ~filters.sticker
         & ~filters.via_bot
         & ~filters.forwarded
-    ) & filters.document)
-async def auto_translate_and_share(client, message):
-    if message.document and message.document.mime_type == "application/vnd.android.package-archive":
-        description = message.caption if message.caption else "No description"
-        await translate_and_share(client, description, message.document)
+        & filters.document
+    )
+    async def auto_translate_and_share(client, message):
+        if message.document and message.document.mime_type == "application/vnd.android.package-archive":
+            description = message.caption if message.caption else "No description"
+            await translate_and_share(client, description, message.document)
 
 @bot.bot.on_message(filters.command("translate") & filters.private)
 async def manual_translate_and_share(client, message):
     if message.reply_to_message and message.reply_to_message.document and message.reply_to_message.document.mime_type == "application/vnd.android.package-archive":
         description = message.reply_to_message.caption if message.reply_to_message.caption else "No description"
         await translate_and_share(client, description, message.reply_to_message.document)
+        
