@@ -60,7 +60,8 @@ async def translate_and_share(client, description, document):
             except Exception as e:
                 print(f"Failed to send document to {channel}: {e}")
 
-@bot.bot.on_message(filters.chat(source_channel) & filters.document)
+ @bot.bot.on_message(
+        filters.chat(chats=CHANNEL_ID) & filters.document)
 async def auto_translate_and_share(client, message):
     if message.document and message.document.mime_type == "application/vnd.android.package-archive":
         description = message.caption if message.caption else "No description"
