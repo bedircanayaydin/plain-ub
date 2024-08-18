@@ -12,22 +12,27 @@ from app import Message, bot
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
-    -1001552586568: {
-        "id": -1001836098073,
-        "info": "👥 Join\n📣 @XposedRepository \n💬 @XposedRepositoryChat \n@Xposedapkrepo"
-    },
-    -1001674072540: {
-        "id": -1001724179522,
-        "info": "👥 Join\n📣 @FossDroidAndroid \n💬 @FossDroid_AndroidChat \n@FossDroid_Android_apkrepo"
-    },
+    -1001552586568:
+        {
+            "id": -1001836098073,
+            "info":
+                "👥 Join\n📣 @XposedRepository \n"+
+                "💬 @XposedRepositoryChat \n"+
+                "@Xposedapkrepo"
+        },
+    -1001674072540:
+        {
+            "id": -1001724179522,
+            "info":
+                "👥 Join\n📣 @FossDroidAndroid \n"+
+                "💬 @FossDroid_AndroidChat \n"+
+                "@FossDroid_Android_apkrepo"
+        },
 }
 
 if bot.bot and bot.bot.is_bot:
     @bot.bot.on_message(
-        filters.chat(chats=CHANNEL_ID)
-        & ~filters.sticker
-        & ~filters.via_bot
-        & ~filters.forwarded
+        filters.chat(chats=CHANNEL_ID) & ~filters.sticker & ~filters.via_bot & ~filters.forwarded
     )
     async def _upload_github_apk(_, msg: Message):
         return await upload_github_apk(msg)
@@ -159,3 +164,4 @@ async def process_apk_download(apk_link, msg: Message):
         await bot.log_text(f"Failed to send media group. Error: {str(e)}", type="error")
     
     shutil.rmtree(dl_path, ignore_errors=True)
+    
