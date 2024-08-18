@@ -30,8 +30,8 @@ APK_CHANNEL_ID = {
         },
 }
 
-if bot.bot and bot.bot.is_bot:
-    @bot.bot.on_message(
+if bot and bot.is_bot:
+    @bot.on_message(
         filters.chat(chats=CHANNEL_ID) & ~filters.sticker & ~filters.via_bot & ~filters.forwarded
     )
     async def _upload_github_apk(_, msg: Message):
@@ -43,7 +43,6 @@ async def upload_github_apk(msg: Message):
         await bot.log_text(f"No text or caption found in the message.\nMessage: {msg.link}", type="info")
         return
 
-    # Check if message contains a direct APK link
     direct_apk_pattern = r"https?://github\.com/[^/]+/[^/]+/releases/download/[^/]+/[^/]+\.apk"
     direct_apk_match = re.search(direct_apk_pattern, data)
     if direct_apk_match:
@@ -51,7 +50,6 @@ async def upload_github_apk(msg: Message):
         await process_apk_download(apk_link, msg)
         return
 
-    # Check if message contains a GitHub repository URL
     repo_pattern = r"https?://github\.com/([^/]+)/([^/?#]+)(?:/releases(?:/tag/([^/?#]+))?)?"
     repo_match = re.search(repo_pattern, data)
     if not repo_match:
