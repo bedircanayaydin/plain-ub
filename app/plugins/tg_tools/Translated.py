@@ -47,7 +47,7 @@ async def translate_and_share(client, description, document):
     target_languages = ['tr', 'es', 'pt', 'id']  
     translations = {lang: process_translation(description, lang) for lang in target_languages}
     
-    target_channels = ['@MiuiSystemUpdatesTR', '@miuisystemupdates_es', '@miuisystemupdatesbr','@msu_Indonesia']  
+    target_channels = ['@MiuiSystemUpdatesTR', '@miuisystemupdates_es', '@miuisystemupdatesbr', '@msu_Indonesia']  
     for channel in target_channels:
         for lang, translated_text in translations.items():
             try:
@@ -60,9 +60,8 @@ async def translate_and_share(client, description, document):
             except Exception as e:
                 print(f"Failed to send document to {channel}: {e}")
 
-if bot.bot and bot.bot.is_bot:
-    @bot.bot.on_message(
-        filters.chat(chats=CHANNEL_ID)
+    @app.on_message(
+        filters.chat(chats=source_channel)
         & ~filters.sticker
         & ~filters.via_bot
         & ~filters.forwarded
@@ -73,9 +72,8 @@ if bot.bot and bot.bot.is_bot:
             description = message.caption if message.caption else "No description"
             await translate_and_share(client, description, message.document)
 
-@bot.bot.on_message(filters.command("translate") & filters.private)
-async def manual_translate_and_share(client, message):
-    if message.reply_to_message and message.reply_to_message.document and message.reply_to_message.document.mime_type == "application/vnd.android.package-archive":
-        description = message.reply_to_message.caption if message.reply_to_message.caption else "No description"
-        await translate_and_share(client, description, message.reply_to_message.document)
-        
+    @app.on_message(filters.command("translate") & filters.private)
+    async def manual_translate_and_share(client, message):
+        if message.reply_to_message and message.reply_to_message.document and message.reply_to_message.document.mime_type == "application/vnd.android.package-archive":
+            description = message.reply_to_message.caption if message.reply_to_message.caption else "No description"
+            await translate_and_share(client, description, message.reply_to_message.document)
