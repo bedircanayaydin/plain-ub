@@ -194,13 +194,13 @@ async def download_and_upload_apks(assets, msg: Message, user: str, repo: str, t
         f"{APK_CHANNEL_ID[msg.chat.id]['info']}"
     )
 
-        try:
-        await bot.send_media_group(
-            chat_id=msg.chat.id,
-            media=grouped_apks
-        )
-    except Exception as e:
-        await bot.log_text(f"APK'ların gönderilmesi hatası. Hata: {str(e)}", type="error")
+    try:
+   await bot.send_media_group(
+   chat_id=msg.chat.id,
+   media=grouped_apks
+   )
+   except Exception as e:
+   await bot.log_text(f"APK'ların gönderilmesi hatası. Hata: {str(e)}", type="error")
 
 from pyrogram import Client, filters
 from pyrogram.types import Message
