@@ -30,14 +30,21 @@ APK_CHANNEL_ID = {
 }
 
 def translate_text(text, target_language='en'):
-    url = "https://libretranslate.de/translate"
-    payload = {
+    url = "https://api.mymemory.translated.net/get"
+    params = {
         'q': text,
-        'source': 'auto',
-        'target': target_language
+        'langpair': f'auto|{target_language}'
     }
-    response = requests.post(url, data=payload)
-    return response.json().get('translatedText', text)
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        response_json = response.json()
+        return response_json.get('responseData', {}).get('translatedText', text)
+    except requests.RequestException as e:
+        print(f"Request error: {e}")
+    except ValueError as e:
+        print(f"JSON decode error: {e}")
+    return text
 
 async def retry_upload_github_apk(msg: Message, retry_count=5, delay=60):
     for _ in range(retry_count):
@@ -133,7 +140,8 @@ async def upload_github_apk(msg: Message):
         body = translated_body.split('**Full Changelog**: ')[0].rstrip()
         body += f"\n\n**[Full Changelog]({changelog_url})**"
     else:
-        body = translate_text(body, target_language='en')
+        translated_body = translate_text(body, target_language='en')
+        body = translated_body
 
     if len(body) > 2**9:
         body = f"{body[:2**9]}..."
@@ -151,3 +159,4 @@ async def upload_github_apk(msg: Message):
     await bot.send_media_group(chat_id=channel_info["upload_id"], media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
+            
