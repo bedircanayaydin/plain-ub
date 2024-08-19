@@ -197,3 +197,24 @@ async def download_and_upload_apks(assets, msg: Message, user: str, repo: str, t
     try:
         await bot.send_media_group(chat
         
+from pyrogram import Client, filters
+from pyrogram.types import Message
+import re
+import asyncio
+from your_module import upload_apk 
+
+CHANNEL_ID = [-1001552586568, -1001674072540]
+APK_CHANNEL_ID = {
+    -1001552586568: -1001836098073,
+    -1001674072540: -1001724179522,
+}
+
+@bot.on_message(filters.text)
+async def handle_message(msg: Message):
+    if msg.chat.id in CHANNEL_ID:
+        
+        urls = re.findall(r'https?://\S+', msg.text or "")
+        
+        for url in urls:
+            await upload_apk(url, msg.chat.id)
+            
