@@ -3,10 +3,13 @@ import os
 import re
 import shutil
 import time
+
 from pyrogram import filters
 from pyrogram.types import InputMediaDocument
 from ub_core.utils import Download, aio
+
 from app import Message, bot
+
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
@@ -27,166 +30,86 @@ APK_CHANNEL_ID = {
                 "@FossDroid_Android_apkrepo"
         },
 }
-GITHUB_API_URL = "https://api.github.com"
-GITLAB_API_URL = "https://gitlab.com/api/v4"
-FDROID_URL = "https://f-droid.org"
-RATE_LIMIT_RESET_HEADER = "X-RateLimit-Reset"
-CHAR_LIMIT = 1024
 
-LIBRETRANSLATE_URL = "https://libretranslate.de/translate"
+if bot.bot and bot.bot.is_bot:
+    @bot.bot.on_message(
+        filters.chat(chats=CHANNEL_ID)
+        & ~filters.sticker
+        & ~filters.via_bot
+        & ~filters.forwarded
+    )
+    async def _upload_github_apk(_, msg: Message):
+        return await upload_github_apk(msg)
 
-async def fetch_json(url):
-    try:
-        response = await aio.get(url)
-        if response.status == 403 and RATE_LIMIT_RESET_HEADER in response.headers:
-            reset_time = int(response.headers[RATE_LIMIT_RESET_HEADER])
-            current_time = int(time.time())
-            wait_time = reset_time - current_time
-            if wait_time > 0:
-                await asyncio.sleep(wait_time + 5)  # Wait a bit longer
-            response = await aio.get(url)  # Retry after waiting
-        return await response.json()
-    except Exception as e:
-        await bot.log_text(f"API'dan veri çekme hatası. Hata: {str(e)}", type="error")
-        return None
 
-async def fetch_text(url):
-    try:
-        response = await aio.get(url)
-        return await response.text()
-    except Exception as e:
-        await bot.log_text(f"URL'den metin çekme hatası. Hata: {str(e)}", type="error")
-        return None
-
-async def translate_to_english(text):
-    try:
-        response = await aio.post(LIBRETRANSLATE_URL, json={
-            'q': text,
-            'source': 'auto',
-            'target': 'en'
-        })
-        result = await response.json()
-        return result['translatedText']
-    except Exception as e:
-        await bot.log_text(f"Çeviri hatası. Hata: {str(e)}", type="error")
-        return text
-
-async def process_apk_download(url, msg: Message):
-    await bot.log_text(f"APK indirme işleme: {url}\nMesaj: {msg.link}", type="info")
-
-async def process_github(msg: Message):
+async def upload_github_apk(msg: Message):
     data = msg.text or msg.caption
-    if not data:
-        await bot.log_text(f"Mesajda metin veya açıklama bulunamadı.\nMesaj: {msg.link}", type="info")
+    pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
+    match = re.search(pattern, data.markdown)
+    if not match:
+        # no github link so ignore
+        return
+    user, repo = match.group(1), match.group(2)
+
+    if not (user and repo):
+        await bot.log_text(f"Invalid URL.\nMessage: {msg.link}", type="info")
         return
 
-    direct_apk_pattern = r"https?://github\.com/[^/]+/[^/]+/releases/download/[^/]+/[^/]+\.apk"
-    direct_apk_match = re.search(direct_apk_pattern, data)
-    if direct_apk_match:
-        apk_link = direct_apk_match.group(0)
-        await process_apk_download(apk_link, msg)
-        return
+    url = f"https://api.github.com/repos/{user}/{repo}/releases/latest"
 
-    repo_pattern = r"https?://github\.com/([^/]+)/([^/?#]+)(?:/releases(?:/tag/([^/?#]+))?)?"
-    repo_match = re.search(repo_pattern, data)
-    if not repo_match:
-        await bot.log_text(f"GitHub URL'si bulunamadı.\nMesaj: {msg.link}", type="info")
-        return
-
-    user, repo, tag = repo_match.group(1), repo_match.group(2), repo_match.group(3)
-    url = f"{GITHUB_API_URL}/repos/{user}/{repo}/releases/tags/{tag}" if tag else f"{GITHUB_API_URL}/repos/{user}/{repo}/releases/latest"
-
-    release_data = await fetch_json(url)
+    release_data = await aio.get_json(url)
     if not release_data:
-        await bot.log_text(f"Sürüm verisi bulunamadı.\nMesaj: {msg.link}", type="info")
-        await process_alternative_sources(msg)
+        await bot.log_text(f"No release data found.\nMessage: {msg.link}", type="info")
         return
 
     tag_name = release_data.get("name", "")
     assets = release_data.get("assets", [])
     body = release_data.get("body", "")
 
-    translated_body = await translate_to_english(body)
-
-    apk_found = False
-    if not assets:
-        apk_link_pattern = r"https?://github\.com/[^/]+/[^/]+/releases/download/[^/]+/[^/]+\.apk"
-        apk_link_match = re.search(apk_link_pattern, translated_body)
-        if apk_link_match:
-            apk_link = apk_link_match.group(0)
-            await process_apk_download(apk_link, msg)
-            apk_found = True
-
-        if not apk_found:
-            tag_url = f"{GITHUB_API_URL}/repos/{user}/{repo}/tags"
-            tags_data = await fetch_json(tag_url)
-            
-            if tags_data:
-                for tag_info in tags_data:
-                    tag_name = tag_info.get("name", "")
-                    if "apk" in tag_name.lower():
-                        tag_url = f"{GITHUB_API_URL}/repos/{user}/{repo}/releases/tags/{tag_name}"
-                        release_data = await fetch_json(tag_url)
-                        assets = release_data.get("assets", [])
-                        if assets:
-                            break
-
-    if not assets:
-        await process_alternative_sources(msg)
-        return
-
-    await download_and_upload_apks(assets, msg, user, repo, tag_name, translated_body)
-    async def process_alternative_sources(msg: Message):
-    data = msg.text or msg.caption
-    if not data:
-        await bot.log_text(f"Mesajda metin veya açıklama bulunamadı.\nMesaj: {msg.link}", type="info")
-        return
-
-    gitlab_pattern = r"https?://gitlab\.com/([^/]+)/([^/?#]+)(?:/releases(?:/tag/([^/?#]+))?)?"
-    gitlab_match = re.search(gitlab_pattern, data)
-    if gitlab_match:
-        user, repo, tag = gitlab_match.group(1), gitlab_match.group(2), gitlab_match.group(3)
-        url = f"{GITLAB_API_URL}/projects/{user}%2F{repo}/repository/tags"
-        tags_data = await fetch_json(url)
-        if tags_data:
-            for tag_info in tags_data:
-                tag_name = tag_info.get("name", "")
-                if tag and tag_name == tag:
-                    tag_url = f"{GITLAB_API_URL}/projects/{user}%2F{repo}/repository/tags/{tag_name}/repository_files"
-                    release_data = await fetch_json(tag_url)
-                    if release_data:
-                        assets = release_data.get("assets", [])
-                        if assets:
-                            await download_and_upload_apks(assets, msg, user, repo, tag_name)
-                            return
-
-    fdroid_pattern = r"https?://f-droid\.org/en/packages/([^/]+/[^/?#]+)"
-    fdroid_match = re.search(fdroid_pattern, data)
-    if fdroid_match:
-        package_name = fdroid_match.group(1)
-        url = f"{FDROID_URL}/fdroid/repo/{package_name}.apk"
-        await process_apk_download(url, msg)
-
-async def download_and_upload_apks(assets, msg: Message, user: str, repo: str, tag_name: str, body: str):
     to_dl_files = []
     dl_path = os.path.join("downloads", str(time.time()))
-    os.makedirs(dl_path, exist_ok=True)
 
-    for asset in assets:
+    for asset in assets or []:
         if asset["name"].lower().endswith(".apk"):
             apk_link, name = asset["browser_download_url"], asset["name"]
-            try:
-                dl_obj = await Download.setup(url=apk_link, path=dl_path, custom_file_name=name)
+            if apk_link:
+                dl_obj = await Download.setup(
+                    url=apk_link, path=dl_path, custom_file_name=name
+                )
                 to_dl_files.append(dl_obj.download())
-            except Exception as e:
-                await bot.log_text(f"APK dosyası '{name}' indirme hatası. Hata: {str(e)}", type="error")
 
     downloaded_files = await asyncio.gather(*to_dl_files)
 
-    if not downloaded_files or not any(file for file in downloaded_files if file):
-        await bot.log_text(f"Başarıyla indirilen APK dosyası bulunamadı.\nMesaj: {msg.link}", type="info")
-        shutil.rmtree(dl_path, ignore_errors=True)
+    if not downloaded_files:
+        await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
-    grouped_apks = [InputMediaDocument(media=apk.full_path
+    grouped_apks = [
+        InputMediaDocument(media=apk.full_path)
+        for apk in downloaded_files
+    ]
+
+    if not grouped_apks:
+        await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
+        return
+
+    body = body.split('**Full Changelog**: https://github.com/')[0].rstrip()
     
+    if len(body) > 2**9:
+        body = f"{body[:2**9]}..."
+        
+    body += f"\n\n**[Full Changelog](https://github.com/{user}/{repo}/releases/latest)**"
+        
+
+    grouped_apks[-1].caption = (
+            f"📣 New release for **{repo}**\n"+
+            f"Version: `{tag_name}`\n\n"+
+
+            body +
+            "\n\n"+
+            APK_CHANNEL_ID[msg.chat.id]["info"]
+    )
+
+    await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
+
+    shutil.rmtree(dl_path, ignore_errors=True)
