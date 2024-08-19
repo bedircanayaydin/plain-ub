@@ -10,6 +10,8 @@ from ub_core.utils import Download, aio
 
 from app import Message, bot
 
+
+CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
     -1001552586568:
         {
@@ -33,6 +35,7 @@ GITHUB_API_URL = "https://api.github.com"
 GITLAB_API_URL = "https://gitlab.com/api/v4"
 FDROID_URL = "https://f-droid.org"
 RATE_LIMIT_RESET_HEADER = "X-RateLimit-Reset"
+CHAR_LIMIT = 1024
 
 async def fetch_json(url):
     try:
@@ -42,11 +45,11 @@ async def fetch_json(url):
             current_time = int(time.time())
             wait_time = reset_time - current_time
             if wait_time > 0:
-                await asyncio.sleep(wait_time + 5)  # Wait a bit longer than needed
-            response = await aio.get(url)  # Retry after wait
+                await asyncio.sleep(wait_time + 5)  # Biraz daha uzun bekle
+            response = await aio.get(url)  # Bekledikten sonra yeniden dene
         return await response.json()
     except Exception as e:
-        await bot.log_text(f"Failed to fetch data from API. Error: {str(e)}", type="error")
+        await bot.log_text(f"API'dan veri çekme hatası. Hata: {str(e)}", type="error")
         return None
 
 async def fetch_text(url):
@@ -54,13 +57,13 @@ async def fetch_text(url):
         response = await aio.get(url)
         return await response.text()
     except Exception as e:
-        await bot.log_text(f"Failed to fetch text from URL. Error: {str(e)}", type="error")
+        await bot.log_text(f"URL'den metin çekme hatası. Hata: {str(e)}", type="error")
         return None
 
 async def process_github(msg: Message):
     data = msg.text or msg.caption
     if not data:
-        await bot.log_text(f"No text or caption found in the message.\nMessage: {msg.link}", type="info")
+        await bot.log_text(f"Mesajda metin veya açıklama bulunamadı.\nMesaj: {msg.link}", type="info")
         return
 
     direct_apk_pattern = r"https?://github\.com/[^/]+/[^/]+/releases/download/[^/]+/[^/]+\.apk"
@@ -73,7 +76,7 @@ async def process_github(msg: Message):
     repo_pattern = r"https?://github\.com/([^/]+)/([^/?#]+)(?:/releases(?:/tag/([^/?#]+))?)?"
     repo_match = re.search(repo_pattern, data)
     if not repo_match:
-        await bot.log_text(f"No GitHub URL found in the message.\nMessage: {msg.link}", type="info")
+        await bot.log_text(f"GitHub URL'si bulunamadı.\nMesaj: {msg.link}", type="info")
         return
 
     user, repo, tag = repo_match.group(1), repo_match.group(2), repo_match.group(3)
@@ -81,7 +84,7 @@ async def process_github(msg: Message):
 
     release_data = await fetch_json(url)
     if not release_data:
-        await bot.log_text(f"No release data found.\nMessage: {msg.link}", type="info")
+        await bot.log_text(f"Sürüm verisi bulunamadı.\nMesaj: {msg.link}", type="info")
         await process_alternative_sources(msg)
         return
 
@@ -116,15 +119,14 @@ async def process_github(msg: Message):
         await process_alternative_sources(msg)
         return
 
-    await download_and_upload_apks(assets, msg)
+    await download_and_upload_apks(assets, msg, user, repo, tag_name)
 
 async def process_alternative_sources(msg: Message):
     data = msg.text or msg.caption
     if not data:
-        await bot.log_text(f"No text or caption found in the message.\nMessage: {msg.link}", type="info")
+        await bot.log_text(f"Mesajda metin veya açıklama bulunamadı.\nMesaj: {msg.link}", type="info")
         return
 
-    # GitLab URL extraction and APK processing
     gitlab_pattern = r"https?://gitlab\.com/([^/]+)/([^/?#]+)(?:/releases(?:/tag/([^/?#]+))?)?"
     gitlab_match = re.search(gitlab_pattern, data)
     if gitlab_match:
@@ -140,10 +142,9 @@ async def process_alternative_sources(msg: Message):
                     if release_data:
                         assets = release_data.get("assets", [])
                         if assets:
-                            await download_and_upload_apks(assets, msg)
+                            await download_and_upload_apks(assets, msg, user, repo, tag_name)
                             return
 
-    # F-Droid URL extraction and APK processing
     fdroid_pattern = r"https?://f-droid\.org/en/packages/([^/]+/[^/?#]+)"
     fdroid_match = re.search(fdroid_pattern, data)
     if fdroid_match:
@@ -151,7 +152,7 @@ async def process_alternative_sources(msg: Message):
         url = f"{FDROID_URL}/fdroid/repo/{package_name}.apk"
         await process_apk_download(url, msg)
 
-async def download_and_upload_apks(assets, msg: Message):
+async def download_and_upload_apks(assets, msg: Message, user: str, repo: str, tag_name: str):
     to_dl_files = []
     dl_path = os.path.join("downloads", str(time.time()))
     os.makedirs(dl_path, exist_ok=True)
@@ -163,41 +164,36 @@ async def download_and_upload_apks(assets, msg: Message):
                 dl_obj = await Download.setup(url=apk_link, path=dl_path, custom_file_name=name)
                 to_dl_files.append(dl_obj.download())
             except Exception as e:
-                await bot.log_text(f"Failed to download APK file '{name}'. Error: {str(e)}", type="error")
+                await bot.log_text(f"APK dosyası '{name}' indirme hatası. Hata: {str(e)}", type="error")
 
     downloaded_files = await asyncio.gather(*to_dl_files)
 
     if not downloaded_files or not any(file for file in downloaded_files if file):
-        await bot.log_text(f"No APK files were downloaded successfully.\nMessage: {msg.link}", type="info")
+        await bot.log_text(f"Başarıyla indirilen APK dosyası bulunamadı.\nMesaj: {msg.link}", type="info")
         shutil.rmtree(dl_path, ignore_errors=True)
         return
 
     grouped_apks = [InputMediaDocument(media=apk.full_path) for apk in downloaded_files if apk and os.path.isfile(apk.full_path)]
 
     if not grouped_apks:
-        await bot.log_text(f"No valid APK files found for this release.\nMessage: {msg.link}", type="info")
+        await bot.log_text(f"Geçerli APK dosyası bulunamadı.\nMesaj: {msg.link}", type="info")
         shutil.rmtree(dl_path, ignore_errors=True)
         return
 
-    body = body.split('**Full Changelog**: https://github.com/')[0].rstrip()
-    if len(body) > 1024:
-        body = f"{body[:1024]}..."
-
-    body += f"\n\n**[Full Changelog](https://github.com/{user}/{repo}/releases/latest)**"
+    body = release_data.get("body", "")
+    if len(body) > CHAR_LIMIT:
+        body_excerpt = body[:CHAR_LIMIT]
+        body = f"{body_excerpt}...\n\n**[Full Changelog](https://github.com/{user}/{repo}/releases/latest)**"
+    else:
+        body += f"\n\n**[Full Changelog](https://github.com/{user}/{repo}/releases/latest)**"
 
     grouped_apks[-1].caption = (
-        f"📣 New release for **{repo}**\n"
-        f"Version: `{tag_name}`\n\n"
+        f"📣 Yeni sürüm **{repo}** için\n"
+        f"Sürüm: `{tag_name}`\n\n"
         f"{body}\n\n"
         f"{APK_CHANNEL_ID[msg.chat.id]['info']}"
     )
 
     try:
-        await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
-    except Exception as e:
-        await bot.log_text(f"Failed to send media group. Error: {str(e)}", type="error")
-    
-    shutil.rmtree(dl_path, ignore_errors=True)
-
-async def process_apk_download(apk_link, msg: Message):
-    dl_path = os.path.join("downloads", str(time.time()))
+        await bot.send_media_group(chat
+        
