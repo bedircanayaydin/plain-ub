@@ -29,15 +29,15 @@ APK_CHANNEL_ID = {
     },
 }
 
-def translate_text(text, target_language='en'):
+def translate_text(text, target_language='en', source_language='auto'):
     url = "https://api.mymemory.translated.net/get"
     params = {
         'q': text,
-        'langpair': f'auto|{target_language}'
+        'langpair': f'{source_language}|{target_language}'
     }
     try:
         response = requests.get(url, params=params)
-        response.raise_for_status()
+        response.raise_for_status()  # Raise an error for bad HTTP responses
         response_json = response.json()
         return response_json.get('responseData', {}).get('translatedText', text)
     except requests.RequestException as e:
@@ -68,11 +68,11 @@ if bot.bot and bot.bot.is_bot:
 async def upload_github_apk(msg: Message):
     data = msg.text or msg.caption
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
-    match = re.search(pattern, data.markdown)
-    
+    match = re.search(pattern, data)
+
     if not match:
         alt_pattern = r"\[.*?(download|source).*?\]\((https?://github\.com/[^/]+/[^/?#]+)\)"
-        match = re.search(alt_pattern, data.markdown)
+        match = re.search(alt_pattern, data)
         if match:
             url = match.group(2)
             user, repo = re.search(r"github\.com/([^/]+)/([^/?#]+)", url).groups()
@@ -133,14 +133,16 @@ async def upload_github_apk(msg: Message):
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
+    # Detect if the body needs translation
     changelog_section = re.search(r"\*\*Full Changelog\*\*: (https://github\.com/[^/]+/[^/?#]+)", body)
     if changelog_section:
         changelog_url = changelog_section.group(1)
-        translated_body = translate_text(body, target_language='en')
+        # Translate only the changelog section
+        translated_body = translate_text(body, target_language='en', source_language='auto')
         body = translated_body.split('**Full Changelog**: ')[0].rstrip()
         body += f"\n\n**[Full Changelog]({changelog_url})**"
     else:
-        translated_body = translate_text(body, target_language='en')
+        translated_body = translate_text(body, target_language='en', source_language='auto')
         body = translated_body
 
     if len(body) > 2**9:
@@ -159,4 +161,4 @@ async def upload_github_apk(msg: Message):
     await bot.send_media_group(chat_id=channel_info["upload_id"], media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
-            
+    
