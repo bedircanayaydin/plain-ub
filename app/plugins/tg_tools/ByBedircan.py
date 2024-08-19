@@ -3,9 +3,9 @@ import os
 import re
 import shutil
 import time
+import requests
 from pyrogram import filters
 from pyrogram.types import InputMediaDocument
-from googletrans import Translator
 from ub_core.utils import Download, aio
 from app import Message, bot
 
@@ -28,6 +28,16 @@ APK_CHANNEL_ID = {
         ),
     },
 }
+
+def translate_text(text, target_language='en'):
+    url = "https://libretranslate.de/translate"
+    payload = {
+        'q': text,
+        'source': 'auto',
+        'target': target_language
+    }
+    response = requests.post(url, data=payload)
+    return response.json().get('translatedText', text)
 
 async def retry_upload_github_apk(msg: Message, retry_count=5, delay=60):
     for _ in range(retry_count):
@@ -116,18 +126,17 @@ async def upload_github_apk(msg: Message):
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
 
-    translator = Translator()
-    detected_lang = translator.detect(body).lang
+    changelog_section = re.search(r"\*\*Full Changelog\*\*: (https://github\.com/[^/]+/[^/?#]+)", body)
+    if changelog_section:
+        changelog_url = changelog_section.group(1)
+        translated_body = translate_text(body, target_language='en')
+        body = translated_body.split('**Full Changelog**: ')[0].rstrip()
+        body += f"\n\n**[Full Changelog]({changelog_url})**"
+    else:
+        body = translate_text(body, target_language='en')
 
-    if detected_lang != 'en':
-        body = translator.translate(body, dest='en').text
-
-    body = body.split('**Full Changelog**: https://github.com/')[0].rstrip()
-    
     if len(body) > 2**9:
         body = f"{body[:2**9]}..."
-        
-    body += f"\n\n**[Full Changelog](https://github.com/{user}/{repo}/releases/latest)**"
         
     channel_info = APK_CHANNEL_ID[msg.chat.id]
 
@@ -142,4 +151,3 @@ async def upload_github_apk(msg: Message):
     await bot.send_media_group(chat_id=channel_info["upload_id"], media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
-    
