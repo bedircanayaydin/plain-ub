@@ -60,8 +60,8 @@ def translate_text(text, target_language='en', source_language='auto'):
         print(f"JSON decode error: {e}")
     return text
 
-async def retry_upload_github_apk(msg: Message, retry_count=5, delay=60):
-    for _ in range(retry_count):
+async def retry_upload_github_apk(msg: Message, retry_count=5, delay=300):
+    for attempt in range(retry_count):
         try:
             await upload_github_apk(msg)
             return
@@ -81,11 +81,13 @@ if bot.bot and bot.bot.is_bot:
 
 async def upload_github_apk(msg: Message):
     data = msg.text or msg.caption
-    
+
+    # Pattern for GitHub URL
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
     match = re.search(pattern, data.markdown)
-    
+
     if not match:
+        # Alternative pattern for links with "download" or "source"
         alt_pattern = r"\[.*?(download|source).*?\]\((https?://github\.com/[^/]+/[^/?#]+)\)"
         match = re.search(alt_pattern, data.markdown)
         if match:
@@ -93,6 +95,7 @@ async def upload_github_apk(msg: Message):
             user, repo = re.search(r"github\.com/([^/]+)/([^/?#]+)", url).groups()
         else:
             await bot.log_text(f"No GitHub URL found in the message.\nMessage: {msg.link}", type="info")
+            await search_github_for_apk(msg)
             return
     else:
         user, repo = match.group(1), match.group(2)
@@ -110,12 +113,17 @@ async def upload_github_apk(msg: Message):
     
     release_data = None
     for url in paths:
-        release_data = await aio.get_json(url)
-        if release_data and release_data.get("assets"):
-            break
+        try:
+            release_data = await aio.get_json(url)
+            if release_data and release_data.get("assets"):
+                break
+        except requests.RequestException as e:
+            print(f"Request error for {url}: {e}")
+            await asyncio.sleep(300)  # Wait 5 minutes before retrying if rate limit is hit
 
     if not release_data:
         await bot.log_text(f"No release data found.\nMessage: {msg.link}", type="info")
+        await search_github_for_apk(msg)
         return
 
     tag_name = release_data.get("name", "")
@@ -138,6 +146,7 @@ async def upload_github_apk(msg: Message):
 
     if not downloaded_files:
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
+        await search_github_for_apk(msg)
         return
 
     grouped_apks = [
@@ -171,4 +180,80 @@ async def upload_github_apk(msg: Message):
     await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
+
+async def search_github_for_apk(msg: Message):
+    search_query = "APK file"
+    search_url = f"https://api.github.com/search/code?q={search_query}+in:file+extension:apk"
+    
+    try:
+        response = requests.get(search_url)
+        response.raise_for_status()
+        search_results = response.json()
         
+        for item in search_results.get('items', []):
+            file_url = item.get('html_url')
+            file_name = item.get('name')
+            if file_url and file_name.lower().endswith(".apk"):
+                await bot.log_text(f"Found APK: {file_name} - {file_url}", type="info")
+                dl_obj = await Download.setup(url=file_url, path="downloads", custom_file_name=file_name)
+                downloaded_file = await dl_obj.download()
+                
+                if downloaded_file:
+                    grouped_apks = [InputMediaDocument(media=downloaded_file.full_path)]
+                    grouped_apks[0].caption = (
+                        f"📣 New APK found: **{file_name}**\n"
+                        f"Download: [Link]({file_url})\n\n"
+                        f"{APK_CHANNEL_ID[msg.chat.id]['info']}"
+                    )
+                    await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
+                    
+                return
+                
+    except requests.RequestException as e:
+        print(f"Search request error: {e}")
+    except ValueError as e:
+        print(f"JSON decode error: {e}")
+
+async def copy_and_validate_link(msg: Message):
+    data = msg.text or msg.caption
+
+    # Find the GitHub URL in the text
+    pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
+    match = re.search(pattern, data)
+
+    if match:
+        # Copy the URL
+        copied_url = match.group(0)
+        
+        # Validate the copied link
+        response = requests.get(copied_url)
+        if response.status_code == 200:
+            # Link is valid, upload the APK
+            await upload_github_apk(msg)
+        else:
+            # Log an error if the link is not valid
+            await bot.log_text(f"Invalid URL: {copied_url}\nMessage: {msg.link}", type="error")
+    else:
+        await bot.log_text(f"No valid GitHub URL found in the message.\nMessage: {msg.link}", type="info")
+        
+async def copy_and_validate_link(msg: Message):
+    data = msg.text or msg.caption
+
+    # Find the GitHub URL in the text
+    pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
+    match = re.search(pattern, data)
+
+    if match:
+        # Copy the URL
+        copied_url = match.group(0)
+        
+        # Validate the copied link
+        response = requests.get(copied_url)
+        if response.status_code == 200:
+            # Link is valid, upload the APK
+            await upload_github_apk(msg)
+        else:
+            # Log an error if the link is not valid
+            await bot.log_text(f"Invalid URL: {copied_url}\nMessage: {msg.link}", type="error")
+    else:
+        await bot.log_text(f"No valid GitHub URL found in the message.\nMessage: {msg.link}", type="info")
