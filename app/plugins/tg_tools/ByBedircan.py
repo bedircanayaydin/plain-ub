@@ -4,6 +4,7 @@ import re
 import shutil
 import time
 import requests
+
 from pyrogram import filters
 from pyrogram.types import InputMediaDocument
 from ub_core.utils import Download, aio
@@ -12,7 +13,7 @@ from app import Message, bot
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
     -1001552586568: {
-        "upload_id": -1001836098073,
+        "id": -1001836098073,
         "info": (
             "👥 Join\n📣 @XposedRepository \n"
             "💬 @XposedRepositoryChat \n"
@@ -20,7 +21,7 @@ APK_CHANNEL_ID = {
         ),
     },
     -1001674072540: {
-        "upload_id": -1001724179522,
+        "id": -1001724179522,
         "info": (
             "👥 Join\n📣 @FossDroidAndroid \n"
             "💬 @FossDroid_AndroidChat \n"
@@ -31,10 +32,7 @@ APK_CHANNEL_ID = {
 
 def detect_language(text):
     url = "https://api.mymemory.translated.net/get"
-    params = {
-        'q': text,
-        'langpair': 'auto|en'
-    }
+    params = {'q': text, 'langpair': 'auto|en'}
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
@@ -49,10 +47,7 @@ def detect_language(text):
 
 def translate_text(text, target_language='en', source_language='auto'):
     url = "https://api.mymemory.translated.net/get"
-    params = {
-        'q': text,
-        'langpair': f'{source_language}|{target_language}'
-    }
+    params = {'q': text, 'langpair': f'{source_language}|{target_language}'}
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
@@ -85,16 +80,19 @@ if bot.bot and bot.bot.is_bot:
 
 async def upload_github_apk(msg: Message):
     data = msg.text or msg.caption
-    pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
-    match = re.search(pattern, data)
+    markdown = msg.markdown 
 
+    pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
+    match = re.search(pattern, data or markdown)
     if not match:
+        # Alternative pattern for links with "download" or "source"
         alt_pattern = r"\[.*?(download|source).*?\]\((https?://github\.com/[^/]+/[^/?#]+)\)"
-        match = re.search(alt_pattern, data)
+        match = re.search(alt_pattern, data or markdown)
         if match:
             url = match.group(2)
             user, repo = re.search(r"github\.com/([^/]+)/([^/?#]+)", url).groups()
         else:
+            await bot.log_text(f"No GitHub URL found in the message.\nMessage: {msg.link}", type="info")
             return
     else:
         user, repo = match.group(1), match.group(2)
@@ -156,19 +154,20 @@ async def upload_github_apk(msg: Message):
         translated_body = translate_text(body, target_language='en', source_language=detected_lang)
         body = translated_body
 
+    body = body.split('**Full Changelog**: https://github.com/')[0].rstrip()
+
     if len(body) > 2**9:
         body = f"{body[:2**9]}..."
         
-    channel_info = APK_CHANNEL_ID[msg.chat.id]
+    body += f"\n\n**[Full Changelog](https://github.com/{user}/{repo}/releases/latest)**"
 
     grouped_apks[-1].caption = (
         f"📣 New release for **{repo}**\n"
         f"Version: `{tag_name}`\n\n"
         f"{body}\n\n"
-        f"{channel_info['info']}"
+        f"{APK_CHANNEL_ID[msg.chat.id]['info']}"
     )
 
-    await bot.send_media_group(chat_id=channel_info["upload_id"], media=grouped_apks)
+    await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
-     
