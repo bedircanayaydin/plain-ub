@@ -76,14 +76,14 @@ if bot.bot and bot.bot.is_bot:
         & ~filters.forwarded
     )
     async def _upload_github_apk(_, msg: Message):
-        await retry_upload_github_apk(msg)
+    async def _upload_github_apk(_, msg: Message):
+        return await upload_github_apk(msg)
+
 
 async def upload_github_apk(msg: Message):
     data = msg.text or msg.caption
-    markdown = msg.markdown 
-
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
-    match = re.search(pattern, data or markdown)
+    match = re.search(pattern, data.markdown)
     if not match:
         # Alternative pattern for links with "download" or "source"
         alt_pattern = r"\[.*?(download|source).*?\]\((https?://github\.com/[^/]+/[^/?#]+)\)"
