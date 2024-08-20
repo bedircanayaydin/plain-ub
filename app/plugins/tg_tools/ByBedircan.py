@@ -219,7 +219,7 @@ async def copy_and_validate_link(msg: Message):
 
     # Find the GitHub URL in the text
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
-    match = re.search(pattern, data)
+    match = re.search(pattern, data.markdown)
 
     if match:
         # Copy the URL
@@ -241,7 +241,7 @@ async def copy_and_validate_link(msg: Message):
 
     # Find the GitHub URL in the text
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
-    match = re.search(pattern, data)
+    match = re.search(pattern, data.markdowm)
 
     if match:
         # Copy the URL
