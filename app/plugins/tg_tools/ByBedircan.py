@@ -52,7 +52,8 @@ def translate_text(text, target_language='en', source_language='auto'):
         response = requests.get(url, params=params)
         response.raise_for_status()
         response_json = response.json()
-        return response_json.get('responseData', {}).get('translatedText', text)
+        translated_text = response_json.get('responseData', {}).get('translatedText', text)
+        return translated_text
     except requests.RequestException as e:
         print(f"Request error: {e}")
     except ValueError as e:
@@ -81,14 +82,12 @@ if bot.bot and bot.bot.is_bot:
 async def upload_github_apk(msg: Message):
     data = msg.text or msg.caption
     
-    # Pattern for GitHub URL
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
-    match = re.search(pattern, data)
+    match = re.search(pattern, data.markdown)
     
     if not match:
-        
         alt_pattern = r"\[.*?(download|source).*?\]\((https?://github\.com/[^/]+/[^/?#]+)\)"
-        match = re.search(alt_pattern, data)
+        match = re.search(alt_pattern, data.markdown)
         if match:
             url = match.group(2)
             user, repo = re.search(r"github\.com/([^/]+)/([^/?#]+)", url).groups()
@@ -172,3 +171,4 @@ async def upload_github_apk(msg: Message):
     await bot.send_media_group(chat_id=APK_CHANNEL_ID[msg.chat.id]["id"], media=grouped_apks)
 
     shutil.rmtree(dl_path, ignore_errors=True)
+        
