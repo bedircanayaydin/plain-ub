@@ -2,8 +2,8 @@ import os
 import re
 import shutil
 import time
-import asyncio  
-import aiohttp  
+import asyncio
+import aiohttp
 from pyrogram import filters
 from pyrogram.types import InputMediaDocument
 from ub_core.utils import Download
@@ -96,7 +96,7 @@ async def upload_github_apk(msg: Message):
     ]
     
     release_data = None
-    session_manager = ClientSessionManager()  
+    session_manager = ClientSessionManager()
 
     for url in paths:
         try:
@@ -119,27 +119,25 @@ async def upload_github_apk(msg: Message):
     to_dl_files = []
     dl_path = os.path.join("downloads", str(time.time()))
 
-    async with session_manager as session:  
+    async with session_manager as session:  # İndirme işlemlerinde oturum yönetimini kullanıyoruz
         for asset in assets or []:
             if asset["name"].lower().endswith(".apk"):
                 apk_link, name = asset["browser_download_url"], asset["name"]
                 if apk_link:
-                    dl_obj = await Download.setup(
-                        session=session,  
-                        url=apk_link, path=dl_path, custom_file_name=name
-                    )
-                    to_dl_files.append(dl_obj.download())
+                    file_path = os.path.join(dl_path, name)
+                    async with session.get(apk_link) as response:
+                        with open(file_path, 'wb') as f:
+                            f.write(await response.read())
+                    to_dl_files.append(file_path)
 
-    downloaded_files = await asyncio.gather(*to_dl_files)
-
-    if not downloaded_files:
+    if not to_dl_files:
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         await search_github_for_apk(msg)
         return
 
     grouped_apks = [
-        InputMediaDocument(media=apk.full_path)
-        for apk in downloaded_files
+        InputMediaDocument(media=file_path)
+        for file_path in to_dl_files
     ]
 
     if not grouped_apks:
@@ -167,7 +165,7 @@ async def upload_github_apk(msg: Message):
 async def search_github_for_apk(msg: Message):
     search_query = "APK file"
     search_url = f"https://api.github.com/search/code?q={search_query}+in:file+extension:apk"
-    session_manager = ClientSessionManager()  # Session manager'ı kullanıyoruz
+    session_manager = ClientSessionManager()
     
     try:
         search_results = await session_manager.get_json(search_url)
