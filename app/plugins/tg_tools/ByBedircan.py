@@ -1,31 +1,14 @@
+import asyncio
 import os
 import re
 import shutil
 import time
-import asyncio
-import aiohttp
+import requests
+
 from pyrogram import filters
 from pyrogram.types import InputMediaDocument
-from ub_core.utils import Download
+from ub_core.utils import Download, aio
 from app import Message, bot
-
-class ClientSessionManager:
-    def __init__(self):
-        self.session = None
-
-    async def __aenter__(self):
-        if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
-        return self.session
-
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        if self.session and not self.session.closed:
-            await self.session.close()
-
-    async def get_json(self, url):
-        async with self as session:
-            async with session.get(url) as response:
-                return await response.json()
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
@@ -46,6 +29,36 @@ APK_CHANNEL_ID = {
         ),
     },
 }
+
+def detect_language(text):
+    url = "https://api.mymemory.translated.net/get"
+    params = {'q': text, 'langpair': 'auto|en'}
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        response_json = response.json()
+        detected_lang = response_json.get('responseData', {}).get('detectedSourceLanguage', 'en')
+        return detected_lang
+    except requests.RequestException as e:
+        print(f"Request error: {e}")
+    except ValueError as e:
+        print(f"JSON decode error: {e}")
+    return 'en'
+
+def translate_text(text, target_language='en', source_language='auto'):
+    url = "https://api.mymemory.translated.net/get"
+    params = {'q': text, 'langpair': f'{source_language}|{target_language}'}
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        response_json = response.json()
+        translated_text = response_json.get('responseData', {}).get('translatedText', text)
+        return translated_text
+    except requests.RequestException as e:
+        print(f"Request error: {e}")
+    except ValueError as e:
+        print(f"JSON decode error: {e}")
+    return text
 
 async def retry_upload_github_apk(msg: Message, retry_count=5, delay=300):
     for attempt in range(retry_count):
@@ -68,10 +81,13 @@ if bot.bot and bot.bot.is_bot:
 
 async def upload_github_apk(msg: Message):
     data = msg.text or msg.caption
+
+    # Pattern for GitHub URL
     pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
     match = re.search(pattern, data.markdown)
 
     if not match:
+        # Alternative pattern for links with "download" or "source"
         alt_pattern = r"\[.*?(download|source).*?\]\((https?://github\.com/[^/]+/[^/?#]+)\)"
         match = re.search(alt_pattern, data.markdown)
         if match:
@@ -96,16 +112,14 @@ async def upload_github_apk(msg: Message):
     ]
     
     release_data = None
-    session_manager = ClientSessionManager()
-
     for url in paths:
         try:
-            release_data = await session_manager.get_json(url)
+            release_data = await aio.get_json(url)
             if release_data and release_data.get("assets"):
                 break
-        except Exception as e:
+        except requests.RequestException as e:
             print(f"Request error for {url}: {e}")
-            await asyncio.sleep(300)  # Rate limit durumunda 5 dakika bekle
+            await asyncio.sleep(300)  # Wait 5 minutes before retrying if rate limit is hit
 
     if not release_data:
         await bot.log_text(f"No release data found.\nMessage: {msg.link}", type="info")
@@ -119,30 +133,35 @@ async def upload_github_apk(msg: Message):
     to_dl_files = []
     dl_path = os.path.join("downloads", str(time.time()))
 
-    async with session_manager as session:  # İndirme işlemlerinde oturum yönetimini kullanıyoruz
-        for asset in assets or []:
-            if asset["name"].lower().endswith(".apk"):
-                apk_link, name = asset["browser_download_url"], asset["name"]
-                if apk_link:
-                    file_path = os.path.join(dl_path, name)
-                    async with session.get(apk_link) as response:
-                        with open(file_path, 'wb') as f:
-                            f.write(await response.read())
-                    to_dl_files.append(file_path)
+    for asset in assets or []:
+        if asset["name"].lower().endswith(".apk"):
+            apk_link, name = asset["browser_download_url"], asset["name"]
+            if apk_link:
+                dl_obj = await Download.setup(
+                    url=apk_link, path=dl_path, custom_file_name=name
+                )
+                to_dl_files.append(dl_obj.download())
 
-    if not to_dl_files:
+    downloaded_files = await asyncio.gather(*to_dl_files)
+
+    if not downloaded_files:
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         await search_github_for_apk(msg)
         return
 
     grouped_apks = [
-        InputMediaDocument(media=file_path)
-        for file_path in to_dl_files
+        InputMediaDocument(media=apk.full_path)
+        for apk in downloaded_files
     ]
 
     if not grouped_apks:
         await bot.log_text(f"No APK files found for this release.\nMessage: {msg.link}", type="info")
         return
+
+    detected_lang = detect_language(body)
+    if detected_lang != 'en':
+        translated_body = translate_text(body, target_language='en', source_language=detected_lang)
+        body = translated_body
 
     body = body.split('**Full Changelog**: https://github.com/')[0].rstrip()
 
@@ -165,10 +184,11 @@ async def upload_github_apk(msg: Message):
 async def search_github_for_apk(msg: Message):
     search_query = "APK file"
     search_url = f"https://api.github.com/search/code?q={search_query}+in:file+extension:apk"
-    session_manager = ClientSessionManager()
     
     try:
-        search_results = await session_manager.get_json(search_url)
+        response = requests.get(search_url)
+        response.raise_for_status()
+        search_results = response.json()
         
         for item in search_results.get('items', []):
             file_url = item.get('html_url')
@@ -189,6 +209,51 @@ async def search_github_for_apk(msg: Message):
                     
                 return
                 
-    except Exception as e:
+    except requests.RequestException as e:
         print(f"Search request error: {e}")
+    except ValueError as e:
+        print(f"JSON decode error: {e}")
+
+async def copy_and_validate_link(msg: Message):
+    data = msg.text or msg.caption
+
+    # Find the GitHub URL in the text
+    pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
+    match = re.search(pattern, data.markdown)
+
+    if match:
+        # Copy the URL
+        copied_url = match.group(0)
         
+        # Validate the copied link
+        response = requests.get(copied_url)
+        if response.status_code == 200:
+            # Link is valid, upload the APK
+            await upload_github_apk(msg)
+        else:
+            # Log an error if the link is not valid
+            await bot.log_text(f"Invalid URL: {copied_url}\nMessage: {msg.link}", type="error")
+    else:
+        await bot.log_text(f"No valid GitHub URL found in the message.\nMessage: {msg.link}", type="info")
+        
+async def copy_and_validate_link(msg: Message):
+    data = msg.text or msg.caption
+
+    # Find the GitHub URL in the text
+    pattern = r"https?://github\.com/([^/]+)/([^/?#]+)"
+    match = re.search(pattern, data.markdowm)
+
+    if match:
+        # Copy the URL
+        copied_url = match.group(0)
+        
+        # Validate the copied link
+        response = requests.get(copied_url)
+        if response.status_code == 200:
+            # Link is valid, upload the APK
+            await upload_github_apk(msg)
+        else:
+            # Log an error if the link is not valid
+            await bot.log_text(f"Invalid URL: {copied_url}\nMessage: {msg.link}", type="error")
+    else:
+        await bot.log_text(f"No valid GitHub URL found in the message.\nMessage: {msg.link}", type="info")
