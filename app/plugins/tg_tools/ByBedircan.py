@@ -2,10 +2,30 @@ import os
 import re
 import shutil
 import time
+import asyncio  
+import aiohttp  
 from pyrogram import filters
 from pyrogram.types import InputMediaDocument
 from ub_core.utils import Download
 from app import Message, bot
+
+class ClientSessionManager:
+    def __init__(self):
+        self.session = None
+
+    async def __aenter__(self):
+        if self.session is None or self.session.closed:
+            self.session = aiohttp.ClientSession()
+        return self.session
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        if self.session and not self.session.closed:
+            await self.session.close()
+
+    async def get_json(self, url):
+        async with self as session:
+            async with session.get(url) as response:
+                return await response.json()
 
 CHANNEL_ID = [-1001552586568, -1001674072540]
 APK_CHANNEL_ID = {
@@ -76,7 +96,7 @@ async def upload_github_apk(msg: Message):
     ]
     
     release_data = None
-    session_manager = ClientSessionManager()  # Session manager'ı kullanıyoruz
+    session_manager = ClientSessionManager()  
 
     for url in paths:
         try:
@@ -85,7 +105,7 @@ async def upload_github_apk(msg: Message):
                 break
         except Exception as e:
             print(f"Request error for {url}: {e}")
-            await asyncio.sleep(300)  
+            await asyncio.sleep(300)  # Rate limit durumunda 5 dakika bekle
 
     if not release_data:
         await bot.log_text(f"No release data found.\nMessage: {msg.link}", type="info")
@@ -147,7 +167,7 @@ async def upload_github_apk(msg: Message):
 async def search_github_for_apk(msg: Message):
     search_query = "APK file"
     search_url = f"https://api.github.com/search/code?q={search_query}+in:file+extension:apk"
-    session_manager = ClientSessionManager() 
+    session_manager = ClientSessionManager()  # Session manager'ı kullanıyoruz
     
     try:
         search_results = await session_manager.get_json(search_url)
