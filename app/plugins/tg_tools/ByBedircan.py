@@ -150,7 +150,7 @@ async def upload_github_apk(msg: Message):
         return
 
     grouped_apks = [
-        InputMediaDocument(media=apk.full_path)
+        InputMediaDocument(media=apk.path)
         for apk in downloaded_files
     ]
 
@@ -199,7 +199,7 @@ async def search_github_for_apk(msg: Message):
                 downloaded_file = await dl_obj.download()
                 
                 if downloaded_file:
-                    grouped_apks = [InputMediaDocument(media=downloaded_file.full_path)]
+                    grouped_apks = [InputMediaDocument(media=downloaded_file.path)]
                     grouped_apks[0].caption = (
                         f"📣 New APK found: **{file_name}**\n"
                         f"Download: [Link]({file_url})\n\n"
