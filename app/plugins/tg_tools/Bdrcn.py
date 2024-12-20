@@ -51,11 +51,11 @@ async def get_exposed_updates(_=None, message=None):
             break
 
     text = (
-        f"📦 Module: {post_title} \n\n"
-        f"✍️ Description: {post_description} \n\n"
-        f"🔗 {version}:\n"
-        f'Download | Source\n\n'
-        f"🗨️ Support Chat: @XposedRepositoryChat"
+        f"<b>📦 Module</b>: {post_title} \n\n"
+        f"<b>✍️ Description</b>: {post_description} \n\n"
+        f"🔗 <code>{version}</code>:\n"
+        f'<a href="{url}">Download</a> | <a href="{source_url}">Source</a>\n\n'
+        f"<b>🗨️ Support Chat</b>: @XposedRepositoryChat"
     )
 
     is_new_post = await check_and_insert_to_db(text)
@@ -90,4 +90,3 @@ async def exposed_worker():
         except Exception as e:
             bot.log.error(e, exc_info=True)
         await asyncio.sleep(10800)
-        
