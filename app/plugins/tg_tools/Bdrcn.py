@@ -22,12 +22,12 @@ async def init_task():
 
 @bot.add_cmd("cxu")
 async def get_exposed_updates(_=None, message=None):
-    website_html = await (await aio.session.get(XPOSED_URL)).text()
+    website_html = await aio.get_text(XPOSED_URL)
     website_soup = bs4.BeautifulSoup(website_html, "html.parser")
 
     first_post = website_soup.find(
         "div",
-        class_="MuiPaper-root MuiCard-root jss1023 MuiPaper-elevation1 MuiPaper-rounded",
+        class_="MuiPaper-root MuiCard-root jss816 MuiPaper-elevation1 MuiPaper-rounded",
     )
 
     head, body = first_post.children
@@ -38,7 +38,7 @@ async def get_exposed_updates(_=None, message=None):
     _, source_info = body.children
     source_url = source_info.get("href")
 
-    post_html = await (await aio.session.get(XPOSED_URL + head.get("href"))).text()
+    post_html = await aio.get_text(XPOSED_URL + head.get("href"))
     post_soup = bs4.BeautifulSoup(post_html, "html.parser")
     post_data = post_soup.find(
         "div", class_="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-md-3"
@@ -51,11 +51,11 @@ async def get_exposed_updates(_=None, message=None):
             break
 
     text = (
-        f"<b>📦 Module</b>: {post_title} \n\n"
-        f"<b>✍️ Description</b>: {post_description} \n\n"
-        f"🔗 <code>{version}</code>:\n"
-        f'<a href="{url}">Download</a> | <a href="{source_url}">Source</a>\n\n'
-        f"<b>🗨️ Support Chat</b>: @XposedRepositoryChat"
+        f"📦 Module: {post_title} \n\n"
+        f"✍️ Description: {post_description} \n\n"
+        f"🔗 {version}:\n"
+        f'Download | Source\n\n'
+        f"🗨️ Support Chat: @XposedRepositoryChat"
     )
 
     is_new_post = await check_and_insert_to_db(text)
@@ -67,7 +67,7 @@ async def get_exposed_updates(_=None, message=None):
     schedule_date = datetime.utcnow() + timedelta(seconds=10)
 
     await bot.send_message(
-        chat_id=-1001552586568, text=text, disable_web_page_preview=True, schedule_date=schedule_date
+        chat_id=-1001552586568, text=text, disable_preview=True, schedule_date=schedule_date
     )
 
 
@@ -90,3 +90,4 @@ async def exposed_worker():
         except Exception as e:
             bot.log.error(e, exc_info=True)
         await asyncio.sleep(10800)
+        
