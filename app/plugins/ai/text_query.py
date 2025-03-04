@@ -1,12 +1,17 @@
-import pickle
+﻿import pickle
 from io import BytesIO
 
-from pyrogram import filters
+from google.genai.chats import AsyncChat
 from pyrogram.enums import ParseMode
 
 from app import BOT, Convo, Message, bot
 from app.plugins.ai.media_query import handle_media
-from app.plugins.ai.models import MODEL, get_response_text, run_basic_check
+from app.plugins.ai.models import (
+    Settings,
+    async_client,
+    get_response_text,
+    run_basic_check,
+)
 
 CONVO_CACHE: dict[str, Convo] = {}
 
@@ -17,6 +22,8 @@ async def question(bot: BOT, message: Message):
     """
     CMD: AI
     INFO: Ask a question to Gemini AI or get info about replied message / media.
+    FLAGS:
+        -s: to use Search
     USAGE:
         .ai what is the meaning of life.
         .ai [reply to a message] (sends replied text as query)
@@ -26,27 +33,36 @@ async def question(bot: BOT, message: Message):
         .ai [reply to image | video | gif] [custom prompt]
     """
     reply = message.replied
-    reply_text = reply.text if reply else ""
+    prompt = message.filtered_input
 
     if reply and reply.media:
         message_response = await message.reply(
             "<code>Processing... this may take a while.</code>"
         )
-        prompt = message.input
         response_text = await handle_media(
-            prompt=prompt, media_message=reply, model=MODEL
+            prompt=prompt,
+            media_message=reply,
+            **Settings.get_kwargs(use_search="-s" in message.flags),
         )
     else:
         message_response = await message.reply(
             "<code>Input received... generating response.</code>"
         )
-        prompt = f"{reply_text}\n\n\n{message.input}".strip()
-        response = await MODEL.generate_content_async(prompt)
-        response_text = get_response_text(response)
+        if reply and reply.text:
+            prompts = [str(reply.text), message.input or "answer"]
+        else:
+            prompts = [message.input]
+
+        response = await async_client.models.generate_content(
+            contents=prompts,
+            **Settings.get_kwargs(use_search="-s" in message.flags),
+        )
+        response_text = get_response_text(response, quoted=True)
 
     await message_response.edit(
-        text=f"```\n{prompt}```**GEMINI AI**:\n{response_text.strip()}",
+        text=f"**>\n•> {prompt}<**\n{response_text}",
         parse_mode=ParseMode.MARKDOWN,
+        disable_preview=True,
     )
 
 
@@ -62,7 +78,7 @@ async def ai_chat(bot: BOT, message: Message):
         After 5 mins of Idle bot will export history and stop chat.
         use .load_history to continue
     """
-    chat = MODEL.start_chat(history=[])
+    chat = async_client.chats.create(**Settings.get_kwargs())
     await do_convo(chat=chat, message=message)
 
 
@@ -77,23 +93,27 @@ async def history_chat(bot: BOT, message: Message):
     """
     reply = message.replied
 
+    if not message.input:
+        await message.reply(f"Ask a question along with {message.trigger}{message.cmd}")
+        return
+
     try:
         assert reply.document.file_name == "AI_Chat_History.pkl"
     except (AssertionError, AttributeError):
         await message.reply("Reply to a Valid History file.")
         return
 
-    resp = await message.reply("<i>Loading History...</i>")
+    resp = await message.reply("`Loading History...`")
     doc = await reply.download(in_memory=True)
     doc.seek(0)
 
     history = pickle.load(doc)
-    await resp.edit("<i>History Loaded... Resuming chat</i>")
-    chat = MODEL.start_chat(history=history)
+    await resp.edit("__History Loaded... Resuming chat__")
+    chat = async_client.chats.create(**Settings.get_kwargs(), history=history)
     await do_convo(chat=chat, message=message)
 
 
-async def do_convo(chat, message: Message):
+async def do_convo(chat: AsyncChat, message: Message):
     prompt = message.input
     reply_to_id = message.id
     chat_id = message.chat.id
@@ -105,9 +125,10 @@ async def do_convo(chat, message: Message):
     convo_obj = Convo(
         client=message._client,
         chat_id=chat_id,
-        filters=generate_filter(message),
         timeout=300,
         check_for_duplicates=False,
+        from_user=message.from_user.id,
+        reply_to_user_id=message._client.me.id,
     )
 
     CONVO_CACHE[message.unique_chat_user_id] = convo_obj
@@ -115,14 +136,15 @@ async def do_convo(chat, message: Message):
     try:
         async with convo_obj:
             while True:
-                ai_response = await chat.send_message_async(prompt)
-                ai_response_text = get_response_text(ai_response)
-                text = f"**GEMINI AI**:\n\n{ai_response_text}"
+                ai_response = await chat.send_message(prompt)
+                ai_response_text = get_response_text(ai_response, quoted=True)
+                text = f"**GEMINI AI**:{ai_response_text}"
                 _, prompt_message = await convo_obj.send_message(
                     text=text,
                     reply_to_id=reply_to_id,
                     parse_mode=ParseMode.MARKDOWN,
                     get_response=True,
+                    disable_preview=True,
                 )
                 prompt, reply_to_id = prompt_message.text, prompt_message.id
 
@@ -132,25 +154,10 @@ async def do_convo(chat, message: Message):
     CONVO_CACHE.pop(message.unique_chat_user_id, 0)
 
 
-def generate_filter(message: Message):
-    async def _filter(_, __, msg: Message):
-        try:
-            assert (
-                msg.text
-                and msg.from_user.id == message.from_user.id
-                and msg.reply_to_message.from_user.id == message._client.me.id
-            )
-            return True
-        except (AssertionError, AttributeError):
-            return False
-
-    return filters.create(_filter)
-
-
-async def export_history(chat, message: Message):
-    doc = BytesIO(pickle.dumps(chat.history))
+async def export_history(chat: AsyncChat, message: Message):
+    doc = BytesIO(pickle.dumps(chat._curated_history))
     doc.name = "AI_Chat_History.pkl"
     caption = get_response_text(
-        await chat.send_message_async("Summarize our Conversation into one line.")
+        await chat.send_message("Summarize our Conversation into one line.")
     )
     await bot.send_document(chat_id=message.from_user.id, document=doc, caption=caption)
