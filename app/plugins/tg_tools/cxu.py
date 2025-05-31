@@ -9,7 +9,7 @@ from ub_core.utils import aio
 
 POST_DB = CustomDB("XPOSED_UPDATDES")
 
-POST_CHANNEL = "-1001552586568"
+POST_CHANNEL = "-1002651613037"
 
 XPOSED_URL = "https://modules.lsposed.org/"
 
