@@ -7,7 +7,7 @@ import bs4
 from ub_core import Config, CustomDB, bot
 from ub_core.utils import aio
 
-POST_DB = CustomDB("XPOSED_UPDATDES")
+POST_DB = CustomDB["XPOSED_UPDATDES"]
 
 POST_CHANNEL = "-1002651613037"
 
