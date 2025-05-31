@@ -10,9 +10,9 @@ from pyrogram.types import InputMediaDocument
 from ub_core.utils import Download, aio
 from app import Message, bot
 
-CHANNEL_ID = [-1001552586568, -1001674072540]
+CHANNEL_ID = [-1002651613037, -1001674072540]
 APK_CHANNEL_ID = {
-    -1001552586568: {
+    -1002651613037: {
         "id": -1001836098073,
         "info": (
             "👥 Join\n📣 @XposedRepository \n"
