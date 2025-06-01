@@ -117,7 +117,7 @@ async def upload_github_apk(msg: Message):
                 break
         except requests.RequestException as e:
             print(f"Request error for {url}: {e}")
-            await asyncio.sleep(300)  # Wait 5 minutes before retrying if rate limit is hit
+            await asyncio.sleep(300)  
 
     if not release_data:
         await bot.log_text(f"No release data found.\nMessage: {msg.link}", type="info")
