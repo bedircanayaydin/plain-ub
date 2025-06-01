@@ -67,7 +67,7 @@ async def get_exposed_updates(_=None, message=None):
     schedule_date = datetime.utcnow() + timedelta(seconds=10)
 
     await bot.send_message(
-        chat_id=-1001552586568, text=text, disable_preview=True, schedule_date=schedule_date
+        chat_id=-1002651613037, text=text, disable_preview=True, schedule_date=schedule_date
     )
 
 
