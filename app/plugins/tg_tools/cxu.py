@@ -9,7 +9,7 @@ from ub_core.utils import aio
 
 POST_DB = CustomDB["XPOSED_UPDATDES"]
 
-POST_CHANNEL = "-1002651613037"
+POST_CHANNEL = -1002651613037
 
 XPOSED_URL = "https://modules.lsposed.org/"
 
@@ -55,10 +55,13 @@ async def get_exposed_updates(_=None, message=None):
         f"<b>✍️ Description</b>: {post_description} \n\n"
         f"🔗 <code>{version}</code>:\n"
         f'<a href="{url}">Download</a> | <a href="{source_url}">Source</a>\n\n'
-        f"<b>🗨️ Support Chat</b>: @XposedRepositoryChat"
+        "🔖<a href='https://t.me/Xposed_Repository/8'>Don't forget to read the Reduction of responsibility</a> "
+        "and then join us: xposeds stuff community:\n"
+        "@XposedRepositoryChat\n@Xposed_Repository\n@Xposed_APK_repository"
     )
 
     is_new_post = await check_and_insert_to_db(text)
+
     if not is_new_post:
         if message:
             await message.reply("No new update found.")
@@ -67,7 +70,7 @@ async def get_exposed_updates(_=None, message=None):
     schedule_date = datetime.utcnow() + timedelta(seconds=10)
 
     await bot.send_message(
-        chat_id=-1002651613037, text=text, disable_preview=True, schedule_date=schedule_date
+        chat_id=POST_CHANNEL, text=text, disable_preview=True, schedule_date=schedule_date
     )
 
 
