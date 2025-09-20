@@ -68,7 +68,7 @@ async def handle_new_pm(bot: BOT, message: Message):
         )
         return
     if RECENT_USERS[user_id] % 2:
-        await message.reply("You are not authorised to PM.")
+        await message.reply("Please wait patiently, You are responsible for reading and following PM rules : @PmRule .")
 
 
 @bot.on_message(PERMIT_FILTER & filters.outgoing, group=2)
