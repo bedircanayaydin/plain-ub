@@ -23,18 +23,11 @@ FBAN_REGEX = BASIC_FILTER & filters.regex(
     re.IGNORECASE,
 )
 
-
 UNFBAN_REGEX = BASIC_FILTER & filters.regex(r"(New un-FedBan|I'll give|Un-FedBan)", re.IGNORECASE)
 
 
 @bot.add_cmd(cmd="addf")
 async def add_fed(bot: BOT, message: Message):
-    """
-    CMD: ADDF
-    INFO: Add a Fed Chat to DB.
-    USAGE:
-        .addf | .addf NAME
-    """
     data = dict(name=message.input or message.chat.title, type=str(message.chat.type))
     await FED_DB.add_data({"_id": message.chat.id, **data})
     text = f"#FBANS\n<b>{data['name']}</b>: <code>{message.chat.id}</code> added to FED LIST."
@@ -44,13 +37,6 @@ async def add_fed(bot: BOT, message: Message):
 
 @bot.add_cmd(cmd="delf")
 async def remove_fed(bot: BOT, message: Message):
-    """
-    CMD: DELF
-    INFO: Delete a Fed from DB.
-    FLAGS: -all to delete all feds.
-    USAGE:
-        .delf | .delf id | .delf -all
-    """
     if "-all" in message.flags:
         await FED_DB.drop()
         await message.reply("FED LIST cleared.")
@@ -77,21 +63,13 @@ async def remove_fed(bot: BOT, message: Message):
 
 @bot.add_cmd(cmd="listf")
 async def fed_list(bot: BOT, message: Message):
-    """
-    CMD: LISTF
-    INFO: View Connected Feds.
-    FLAGS: -id to list Fed Chat IDs.
-    USAGE: .listf | .listf -id
-    """
     output: str = ""
     total = 0
 
     async for fed in FED_DB.find():
         output += f"<b>• {fed['name']}</b>\n"
-
         if "-id" in message.flags:
             output += f"  <code>{fed['_id']}</code>\n"
-
         total += 1
 
     if not total:
@@ -104,21 +82,9 @@ async def fed_list(bot: BOT, message: Message):
 
 @bot.add_cmd(cmd=["fban", "fbanp"])
 async def fed_ban(bot: BOT, message: Message):
-    """
-    CMD: FBAN / FBANP
-    INFO:
-        Initiates a fed-ban in fed-chats added in .addf
-        If cmd is fbanp, it logs the replied message as proof for fban
-        and appends the link in reason.
-    FLAGS:
-        -nrc: Don't do sudo fban
-    USAGE:
-        .fban(p) [uid | @ | reply to message] reason
-    """
     progress: Message = await message.reply("❯")
 
     extracted_info = await get_user_reason(message=message, progress=progress)
-
     if not extracted_info:
         await progress.edit("Unable to extract user info.")
         return
@@ -169,15 +135,6 @@ async def fed_ban(bot: BOT, message: Message):
 
 @bot.add_cmd(cmd="unfban")
 async def un_fban(bot: BOT, message: Message):
-    """
-    CMD: UBFBAN
-    INFO:
-        Initiates a fed-unban in fed-chats added in .addf
-    FLAGS:
-        -nrc: Don't do sudo unfban
-    USAGE:
-        .unfban [uid | @ | reply to message] reason
-    """
     progress: Message = await message.reply("❯")
     extracted_info = await get_user_reason(message=message, progress=progress)
 
@@ -248,12 +205,7 @@ async def _perform_fed_task(
             elif "Would you like to update this reason" in response.text:
                 await response.click("Update reason")
 
-        except Exception as e:
-            await bot.log_text(
-                text=f"An Error occured while banning in fed: {fed['name']} [{chat_id}]"
-                f"\nError: {e}",
-                type=task_type.upper(),
-            )
+        except Exception:
             failed.append(fed["name"])
             continue
 
@@ -263,31 +215,41 @@ async def _perform_fed_task(
         await progress.edit("You Don't have any feds connected!")
         return
 
-    resp_str = (
+    # Only show numbers, not fed names
+    if failed:
+        exec_failed_str = f"\n<b>Failed in</b>: {len(failed)}/{total}"
+        log_failed_str = exec_failed_str
+    else:
+        exec_failed_str = f"\n<b>Status</b>: {task_type}ned in <b>{total}</b> feds."
+        log_failed_str = exec_failed_str
+
+    exec_resp = (
         f"❯❯❯ <b>{task_type}ned</b> {user_mention}"
         f"\n<b>ID</b>: {user_id}"
         f"\n<b>Reason</b>: {reason}"
         f"\n<b>Initiated in</b>: {message.chat.title or 'PM'}"
+        f"{exec_failed_str}"
     )
 
-    failed_str = ""
-    if failed:
-        resp_str += f"\n<b>Failed</b> in: {len(failed)}/{total}"
-        failed_str = "\n• " + "\n• ".join(failed)
-        resp_str += failed_str
-    else:
-        resp_str += f"\n<b>Status</b>: {task_type}ned in <b>{total}</b> feds."
+    log_resp = (
+        f"❯❯❯ <b>{task_type}ned</b> {user_mention}"
+        f"\n<b>ID</b>: {user_id}"
+        f"\n<b>Reason</b>: {reason}"
+        f"\n<b>Initiated in</b>: {message.chat.title or 'PM'}"
+        f"{log_failed_str}"
+    )
 
     if not message.is_from_owner:
-        resp_str += f"\n\n<b>By</b>: {get_name(message.from_user)}"
+        exec_resp += f"\n\n<b>By</b>: {get_name(message.from_user)}"
+        log_resp += f"\n\n<b>By</b>: {get_name(message.from_user)}"
 
+    # Send log (numbers only, no fed list)
     await bot.send_message(
-        chat_id=extra_config.FBAN_LOG_CHANNEL, text=resp_str, disable_preview=True
+        chat_id=extra_config.FBAN_LOG_CHANNEL, text=log_resp, disable_preview=True
     )
 
-    await progress.edit(
-        text=resp_str.replace(failed_str, "", 1), del_in=5, block=True, disable_preview=True
-    )
+    # Summary in execution chat
+    await progress.edit(text=exec_resp, del_in=5, block=True, disable_preview=True)
 
     if "-nrc" not in message.flags:
         await handle_sudo_fban(command=command)
