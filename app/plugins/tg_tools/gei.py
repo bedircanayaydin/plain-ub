@@ -18,9 +18,9 @@ APK_CHANNEL_ID = {
     -1002651613037: {
         "id": -1002435387627,
         "info": (
-            "👥 Join\n📣 @XposedRepository \n"
+            "👥 Join\n📣 @Xposed_Repository \n"
             "💬 @XposedRepositoryChat \n"
-            "@Xposedapkrepo"
+            "@Xposed_APK_repository"
         ),
     },
     -1001674072540: {
