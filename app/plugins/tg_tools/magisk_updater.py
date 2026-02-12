@@ -8,7 +8,7 @@ from pyrogram.errors import FloodWait
 from app import bot, BOT, Message, CustomDB
 
 CHANNEL_ID = -1003826251505
-CHECK_INTERVAL = 100
+CHECK_INTERVAL = 120
 REPO_JSON_URL = "https://github.com/Magisk-Modules-Alt-Repo/json/blob/main/modules.json"
 
 MAGISK_COLLECTION = CustomDB["MAGISK_MODULES"]
