@@ -3,12 +3,12 @@ from datetime import datetime
 from typing import Optional
 
 import aiohttp
-from pyrogram.errors import FloodWait
+from pyrogram.errors import FloodWait, MessageIdInvalid
 
-from app import bot, BOT, Message, CustomDB
+from app import bot, BOT, Message, CustomDB, Config
 
 CHANNEL_ID = -1003826251505
-CHECK_INTERVAL = 120
+CHECK_INTERVAL = 300
 REPO_JSON_URL = "https://raw.githubusercontent.com/Magisk-Modules-Alt-Repo/json/refs/heads/main/modules.json"
 
 MAGISK_COLLECTION = CustomDB["MAGISK_MODULES"]
@@ -164,43 +164,69 @@ async def update_checker_loop():
 
 async def start_on_boot():
     await asyncio.sleep(5)
-    asyncio.create_task(update_checker_loop())
+    task = asyncio.create_task(update_checker_loop(), name="MagiskModuleChecker")
+    Config.BACKGROUND_TASKS.append(task)
     print("✅ Magisk module checker started automatically")
 
 
 @bot.add_cmd(cmd="magiskcheck")
 async def manual_check(bot: BOT, message: Message):
-    await message.edit("🔍 Checking updates...")
-    await check_and_notify_updates()
-    await message.edit("✅ Check completed")
+    try:
+        await message.edit("🔍 Checking updates...")
+        await check_and_notify_updates()
+        await message.edit("✅ Check completed")
+    except MessageIdInvalid:
+        try:
+            await message.reply("✅ Check completed")
+        except:
+            pass
+    except Exception as e:
+        print(f"Error in magiskcheck: {e}")
 
 
 @bot.add_cmd(cmd="magiskstatus")
 async def show_status(bot: BOT, message: Message):
-    status_text = f"📊 **Magisk Checker Status**\n\n"
-    status_text += f"🔄 Running: {'Yes' if is_running else 'No'}\n"
-    status_text += f"⏱️ Check interval: {CHECK_INTERVAL} seconds\n\n"
-    status_text += "**Tracked Modules:**\n"
-    
-    count = 0
-    async for data in MAGISK_COLLECTION.find():
-        module_id = data.get("_id")
-        version = data.get("version")
-        status_text += f"• `{module_id}`: v{version}\n"
-        count += 1
-    
-    if count == 0:
-        status_text += "No modules tracked yet"
-    
-    status_text = truncate_text(status_text, 4000)
-    await message.edit(status_text)
+    try:
+        status_text = f"📊 **Magisk Checker Status**\n\n"
+        status_text += f"🔄 Running: {'Yes' if is_running else 'No'}\n"
+        status_text += f"⏱️ Check interval: {CHECK_INTERVAL} seconds\n\n"
+        status_text += "**Tracked Modules:**\n"
+        
+        count = 0
+        async for data in MAGISK_COLLECTION.find():
+            module_id = data.get("_id")
+            version = data.get("version")
+            status_text += f"• `{module_id}`: v{version}\n"
+            count += 1
+        
+        if count == 0:
+            status_text += "No modules tracked yet"
+        
+        status_text = truncate_text(status_text, 4000)
+        await message.edit(status_text)
+    except MessageIdInvalid:
+        try:
+            await message.reply(status_text)
+        except:
+            pass
+    except Exception as e:
+        print(f"Error in magiskstatus: {e}")
 
 
 @bot.add_cmd(cmd="magiskclear")
 async def clear_database(bot: BOT, message: Message):
-    await message.edit("🗑️ Clearing database...")
-    result = await MAGISK_COLLECTION.delete_many({})
-    await message.edit(f"✅ Cleared {result.deleted_count} modules from database")
+    try:
+        await message.edit("🗑️ Clearing database...")
+        result = await MAGISK_COLLECTION.delete_many({})
+        await message.edit(f"✅ Cleared {result.deleted_count} modules from database")
+    except MessageIdInvalid:
+        try:
+            await message.reply("✅ Database cleared")
+        except:
+            pass
+    except Exception as e:
+        print(f"Error in magiskclear: {e}")
 
 
-asyncio.create_task(start_on_boot())
+task = asyncio.create_task(start_on_boot(), name="MagiskModuleCheckerInit")
+Config.BACKGROUND_TASKS.append(task)
