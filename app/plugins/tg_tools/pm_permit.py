@@ -34,7 +34,7 @@ async def migrate_keys():
 
     guard["_id"] = SETTING_KEY
     await SETTINGS.add_data(guard)
-    await SETTINGS.delete_data({"_id": OLD_KEY})
+    await SETTINGS.delete_data(OLD_KEY)
 
 
 async def pm_permit_filter(_, __, message: Message):
@@ -66,10 +66,7 @@ PERMIT_FILTER = filters.create(pm_permit_filter)
 async def handle_new_pm(bot: BOT, message: Message):
     user_id = message.from_user.id
     if RECENT_MESSAGE_COUNT[user_id] == 0:
-        await bot.log_text(
-            text=f"#PMGUARD\n{message.from_user.mention} [{user_id}] has messaged you.",
-            type="info",
-        )
+        await bot.log_text(text=f"#PMGUARD\n{message.from_user.mention} [{user_id}] has messaged you.", type="info")
     RECENT_MESSAGE_COUNT[user_id] += 1
 
     if message.chat.is_support:
@@ -80,8 +77,7 @@ async def handle_new_pm(bot: BOT, message: Message):
         await bot.block_user(user_id)
         RECENT_MESSAGE_COUNT.pop(user_id)
         await bot.log_text(
-            text=f"#PMGUARD\n{message.from_user.mention} [{user_id}] has been blocked for spamming.",
-            type="info",
+            text=f"#PMGUARD\n{message.from_user.mention} [{user_id}] has been blocked for spamming.", type="info"
         )
         return
     if RECENT_MESSAGE_COUNT[user_id] % 2:
@@ -93,8 +89,7 @@ async def auto_approve(bot: BOT, message: Message):
     message = Message(message=message)
     ALLOWED_USERS.add(message.chat.id)
     await asyncio.gather(
-        PM_USERS.insert_one({"_id": message.chat.id}),
-        message.reply(text="Auto-Approved to PM.", del_in=5),
+        PM_USERS.insert_one({"_id": message.chat.id}), message.reply(text="Auto-Approved to PM.", del_in=5)
     )
 
 
@@ -162,10 +157,7 @@ async def allow_pm(bot: BOT, message: Message):
 
     ALLOWED_USERS.add(user_id)
     RECENT_MESSAGE_COUNT.pop(user_id, 0)
-    await asyncio.gather(
-        message.reply(text=f"{name} allowed to PM.", del_in=8),
-        PM_USERS.insert_one({"_id": user_id}),
-    )
+    await asyncio.gather(message.reply(text=f"{name} allowed to PM.", del_in=8), PM_USERS.insert_one({"_id": user_id}))
 
 
 @bot.add_cmd(cmd="nopm")
@@ -186,10 +178,7 @@ async def no_pm(bot: BOT, message: Message):
         return
 
     ALLOWED_USERS.remove(user_id)
-    await asyncio.gather(
-        message.reply(text=f"{name} Dis-allowed to PM.", del_in=8),
-        PM_USERS.delete_data(user_id),
-    )
+    await asyncio.gather(message.reply(text=f"{name} Dis-allowed to PM.", del_in=8), PM_USERS.delete_data(user_id))
 
 
 def get_userID_name(message: Message) -> tuple:

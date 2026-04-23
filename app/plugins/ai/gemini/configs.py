@@ -1,9 +1,12 @@
 import logging
 import platform
+import sysconfig
 from collections.abc import Callable
 
 import pyrogram
 from google.genai import types
+from pydantic import BaseModel, Field
+from ub_core.version import __version__
 
 from app.plugins.ai.gemini.models import Models
 from app.plugins.ai.gemini.response import FUNCTION_CALL_MAP
@@ -11,87 +14,77 @@ from app.plugins.ai.gemini.response import FUNCTION_CALL_MAP
 logging.getLogger("google_genai.models").setLevel(logging.WARNING)
 
 
-SYSTEM_INSTRUCTION = """Be concise and precise by default. Answer briefly unless the user explicitly asks for more detail.
-When the user requests code:
-    - output only the requested code. Do not add comments, explanations, or surrounding prose unless explicitly asked.
-    - if codebase index of ub-core and plain-ub is present in context use that as reference for output.
-Avoid greetings, filler, or opinionated language. Follow the user's requested format exactly."""
-
-CODE_INSTRUCTION = f"""You are a Python code-generation assistant for a Telegram bot project built with Pyrogram.
-
+SYSTEM_INSTRUCTION = f"""
 ENVIRONMENT
+- Python: {platform.python_version()}
+- ub_core: {__version__}
 
-- Python version: {platform.python_version()}.
-- Installed Pyrogram version: {pyrogram.__version__}.
+INSTRUCTIONS
+TEXT:
+    - Be concise and precise by default. Answer briefly unless the user explicitly asks for more details.
+    - Avoid greetings, filler, or opinionated language. Follow the user's requested format exactly.
 
-CONTEXT ACQUISITION RULES
+CODE:
+    if telegram bot plugin related:
+        PRE CODE GENERATION STEPS:
+            CODEBASE FILE STORE:
+            - Ensure it's present and has files in it otherwise error out early and instruct user to check '.help csync'.
+            - if ub_core version in system prompt > ub_core version from FILE_STORE: instruct user to run '.csync -c' 
+            - Study all files from ub_core in depth to understand code structure, functions and usage.
+            - When possible prefer using existing structures over creating new code. 
+            - app is the bot i,e the main entry point. it is based on ub_core.
+            - study app/plugins roughly to understand how ub_ore is actually used in real world.
+            - you will be generating code for a new plugin in app/plugins.
 
-- On the initial user message, a codebase file will be provided.
-- Treat the resolved codebase contents as definitive for:
-  - file structure and module layout
-  - naming conventions
-  - import ordering
-  - typing and annotation style
-  - docstring and comment style
-  - async vs sync patterns
-  - error handling and logging conventions
-
-PYROGRAM RULES
-
-- If the installed Pyrogram version is newer than your training cutoff or you are uncertain about any API detail, call get_pyro_file_contents() before generating code.
-- Request only the specific Pyrogram source files required for the exact methods or classes you will use.
-- File requests must use the exact absolute paths defined in the Pyrogram path section of the codebase file.
-- Do not construct, infer, normalize, or convert paths.
-- Do not use relative paths.
-- Do not request entire modules or unrelated files.
-- Use retrieved source only to verify method signatures, parameter names, return types, and correct usage patterns.
-
-CODE GENERATION RULES
-
-- Reuse existing project abstractions and helpers where appropriate.
-- Match the project’s formatting and structural patterns exactly.
-- Produce only valid, runnable Python code compatible with the installed Python and Pyrogram versions.
-- Include comments only if they match the project’s existing comment style and are necessary.
-- Do not include:
-  - explanations
-  - markdown or HTML wrappers
-  - code fences
-  - metadata
-  - logs
-  - tool outputs
-  - debug traces
-  - any surrounding commentary
-- Telegram message formatting (e.g., Markdown or HTML) is allowed only inside Python string literals where required by the bot logic.
-
-OUTPUT FORMAT (STRICT)
-
-- Line 1: filename in snake_case
-- Line 2 onward: complete Python file contents
-- No extra text before or after
-- No blank line before the filename
-- No excessive comments
-- No trailing commentary after the file content
-- No markdown or external formatting wrappers
-
-OPERATIONAL CONSTRAINTS
-
-- All reasoning and tool usage must remain internal.
-- The assistant must interpret the codebase from the supplied file.
-- If required API or context details are missing, call the appropriate tool(s) before emitting code.
-- If required context is missing, do not guess the codebase structure.
-- If the request cannot be satisfied under these constraints, return exactly:
-  ERROR: <reason>
-- If the codebase file is missing, return exactly:
-  ERROR: <reason>
+    CODE OUTPUT CONSTRAINTS
+        - Only valid Python code
+        - No comments
+        - No explanations
+        - No markdown
+        - No extra text
+        - No excessive error handling
 """
 
+
+CODE_INSTRUCTION = f"""
+You generate Python code for a Telegram bot project built on ub_core over pyrotgfork (a pyrogram fork).
+
+ENVIRONMENT
+- Python: {platform.python_version()}
+- pyrotgfork: {pyrogram.__version__}
+- ub_core: {__version__}
+- site-packages: {sysconfig.get_path("purelib")}
+
+PRE CODE GENERATION STEPS:
+    CODEBASE FILE STORE:
+        - Ensure it's present and has files in it otherwise error out early.
+        - if ub_core version in system prompt > ub_core version from FILE_STORE: instruct user to run '.csync -c' 
+        - Study all files from ub_core in depth to understand code structure, functions and usage.
+        - When possible prefer using existing structures over creating new code. 
+        - app is the bot i,e the main entry point. it is based on ub_core.
+        - study app/plugins roughly to understand how ub_ore is actually used in real world.
+        - you will be generating code for a new plugin in app/plugins.
+        - do not include app/plugins in final file name.
+
+    FUNCTIONS: get_site_package_tree and get_site_package_content
+        - DO NOT call the functions for app and ub_core.
+        - Call these ONLY when user requests you to study potential site-packages.
+
+CODE OUTPUT CONSTRAINTS
+- Only valid Python code
+- No comments
+- No explanations
+- No markdown
+- No extra text
+- No excessive error handling
+"""
+
+
 SAFETY_SETTINGS = [
-    # SafetySetting(category="HARM_CATEGORY_UNSPECIFIED", threshold="BLOCK_NONE"),
-    types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
-    types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
-    types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
-    types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
-    types.SafetySetting(category="HARM_CATEGORY_CIVIC_INTEGRITY", threshold="BLOCK_NONE"),
+    types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="OFF"),
+    types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="OFF"),
+    types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="OFF"),
+    types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="OFF"),
 ]
 
 MALE_SPEECH_CONFIG = types.SpeechConfig(
@@ -118,7 +111,22 @@ MULTI_SPEECH_CONFIG = types.SpeechConfig(
     )
 )
 
-SEARCH_TOOLS = [types.Tool(google_search=types.GoogleSearch()), types.Tool(url_context=types.UrlContext())]
+
+class CodeResponseSchema(BaseModel):
+    file_name: str = Field(description="full name with extension of the generated file ", default=None)
+    file_content: str = Field(description="data to be written to file", default=None)
+    response_text: str = Field(description="[OPTIONAL] any non code text to be sent back on user request", default=None)
+    error_text: str = Field(description="'Error: reason' incase of failure complying user-request", default=None)
+
+    # python_code_to_exec: str = Field(description="[Optional] python code to run live in current env.", default=None)
+    # shell_code_to_exec: str = Field(description="[Optional] shell code to run in ub_core.utils.run_shell_cmd", default=None)
+
+
+class Tools:
+    TEXT = types.Tool()
+    SEARCH = dict(google_search=types.GoogleSearch(), url_context=types.UrlContext())
+    CODE_FUNCTION_DECLARATIONS = types.Tool(function_declarations=[])
+    CODE = types.Tool()
 
 
 class AIConfig:
@@ -128,7 +136,7 @@ class AIConfig:
         response_modalities=["Text"],
         system_instruction=SYSTEM_INSTRUCTION,
         temperature=0.69,
-        tools=[],
+        tools=[Tools.TEXT],
     )
 
     IMAGE_CONFIG = types.GenerateContentConfig(
@@ -144,12 +152,18 @@ class AIConfig:
     )
 
     CODE_CONFIG = types.GenerateContentConfig(
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         candidate_count=1,
+        response_schema=CodeResponseSchema,
+        response_mime_type="application/json",
         response_modalities=["Text"],
         system_instruction=CODE_INSTRUCTION,
-        temperature=0.69,
-        tools=[],
-        tool_config=types.ToolConfig(function_calling_config=types.FunctionCallingConfig(mode="AUTO")),
+        temperature=1,
+        tools=[Tools.CODE, Tools.CODE_FUNCTION_DECLARATIONS],
+        tool_config=types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(mode="VALIDATED"),
+            include_server_side_tool_invocations=True,
+        ),
     )
 
 
@@ -171,28 +185,28 @@ def get_model_config(flags: list[str]) -> dict:
         AIConfig.AUDIO_CONFIG.speech_config = MULTI_SPEECH_CONFIG
         return {"model": Models.AUDIO_MODEL, "config": AIConfig.AUDIO_CONFIG}
 
-    update_search_tools_in_place(add="-s" in flags, config_tools=AIConfig.TEXT_CONFIG.tools)
+    for k, v in Tools.SEARCH.items():
+        if "-s" in flags:
+            setattr(Tools.TEXT, k, v)
+        else:
+            setattr(Tools.TEXT, k, None)
 
     return {"model": Models.TEXT_MODEL, "config": AIConfig.TEXT_CONFIG}
 
 
-def update_search_tools_in_place(add: bool, config_tools: list):
-    for tool in SEARCH_TOOLS:
-        if add:
-            if tool not in config_tools:
-                config_tools.append(tool)
-        elif tool in config_tools:
-            config_tools.remove(tool)
+def declare_in_tool(tools_list: list[list]):
 
+    def drop_old_declaration(defs: list, fdef: types.FunctionDeclaration):
+        defs[:] = [f for f in defs if isinstance(f, types.FunctionDeclaration) and f.name != fdef.name]
 
-def declare_in_tools(tools_list: list[list]):
     def declare(func: Callable):
         FUNCTION_CALL_MAP[func.__name__] = func
-        func_tool = types.FunctionDeclaration.from_callable_with_api_option(api_option="GEMINI_API", callable=func)
 
-        for tools in tools_list:
-            if func_tool not in tools:
-                tools.append(types.Tool(function_declarations=[func_tool]))
+        declaration = types.FunctionDeclaration.from_callable_with_api_option(api_option="GEMINI_API", callable=func)
+
+        for func_defs in tools_list:
+            drop_old_declaration(func_defs, declaration)
+            func_defs.append(declaration)
 
         return func
 

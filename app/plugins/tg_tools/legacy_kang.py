@@ -2,16 +2,16 @@ import asyncio
 import os
 import random
 import shutil
-import time
 from io import BytesIO
 
-from PIL import Image
 from pyrogram import raw
 from pyrogram.enums import MessageMediaType
 from pyrogram.errors import StickersetInvalid
+from ub_core import Config
 from ub_core import utils as core_utils
 
 from app import BOT, Message, bot, extra_config
+from app.plugins.tg_tools.kang import resize_photo, resize_video
 
 EMOJIS = ("☕", "🤡", "🙂", "🤔", "🔪", "😂", "💀")
 
@@ -25,8 +25,7 @@ async def get_sticker_set(limit: int, is_video=False) -> tuple[str, str, bool]:
         try:
             sticker = await bot.invoke(
                 raw.functions.messages.GetStickerSet(
-                    stickerset=raw.types.InputStickerSetShortName(short_name=f"{pack_name}{video}_{count}"),
-                    hash=0,
+                    stickerset=raw.types.InputStickerSetShortName(short_name=f"{pack_name}{video}_{count}"), hash=0
                 )
             )
             if sticker.set.count < limit:
@@ -43,27 +42,12 @@ async def get_sticker_set(limit: int, is_video=False) -> tuple[str, str, bool]:
 
 
 async def photo_kang(message: Message, **_) -> dict:
-    download_path = os.path.join("downloads", str(time.time()))
-    os.makedirs(download_path, exist_ok=True)
-
-    input_file = os.path.join(download_path, "photo.jpg")
+    download_path = Config.TEMP_DOWNLOAD_PATH()
+    download_path.mkdir()
+    input_file = download_path / "photo.jpg"
     await message.download(input_file)
-
     file = await asyncio.to_thread(resize_photo, input_file)
-
     return dict(cmd="/newpack", limit=120, is_video=False, file=file, path=download_path)
-
-
-def resize_photo(input_file: str) -> BytesIO:
-    image = Image.open(input_file)
-    maxsize = 512
-    scale = maxsize / max(image.width, image.height)
-    new_size = (int(image.width * scale), int(image.height * scale))
-    image = image.resize(new_size, Image.LANCZOS)
-    resized_photo = BytesIO()
-    resized_photo.name = "sticker.png"
-    image.save(resized_photo, format="PNG")
-    return resized_photo
 
 
 async def video_kang(message: Message, ff=False) -> dict:
@@ -71,11 +55,10 @@ async def video_kang(message: Message, ff=False) -> dict:
     if video.file_size > 5242880:
         raise MemoryError("File Size exceeds 5MB.")
 
-    download_path = os.path.join("downloads", f"{time.time()}")
-    os.makedirs(download_path, exist_ok=True)
-
-    input_file = os.path.join(download_path, "input.mp4")
-    output_file = os.path.join(download_path, "sticker.webm")
+    download_path = Config.TEMP_DOWNLOAD_PATH()
+    download_path.mkdir()
+    input_file = download_path / "input.mp4"
+    output_file = download_path / "sticker.webm"
 
     await message.download(input_file)
 
@@ -85,20 +68,6 @@ async def video_kang(message: Message, ff=False) -> dict:
         duration = video.duration
     await resize_video(input_file=input_file, output_file=output_file, duration=duration, ff=ff)
     return dict(cmd="/newvideo", limit=50, is_video=True, file=output_file, path=download_path)
-
-
-async def resize_video(input_file: str, output_file: str, duration: int, ff: bool = False):
-    cmd = f"ffmpeg -hide_banner -loglevel error -i '{input_file}' -vf "
-    if ff:
-        cmd += '"scale=w=512:h=512:force_original_aspect_ratio=decrease,setpts=0.3*PTS" '
-        cmd += "-ss 0 -t 3 -r 30 -loop 0 -an -c:v libvpx-vp9 -b:v 256k -fs 256k "
-    elif duration < 3:
-        cmd += '"scale=w=512:h=512:force_original_aspect_ratio=decrease" '
-        cmd += "-ss 0 -r 30 -an -c:v libvpx-vp9 -b:v 256k -fs 256k "
-    else:
-        cmd += '"scale=w=512:h=512:force_original_aspect_ratio=decrease" '
-        cmd += "-ss 0 -t 3 -r 30 -an -c:v libvpx-vp9 -b:v 256k -fs 256k "
-    await core_utils.run_shell_cmd(cmd=f"{cmd}'{output_file}'")
 
 
 async def document_kang(message: Message, ff: bool = False) -> dict:
@@ -195,10 +164,7 @@ async def kang_sticker(bot: BOT, message: Message):
     if kwargs.get("path"):
         shutil.rmtree(kwargs["path"], ignore_errors=True)
 
-    await response.edit(
-        text=f"Kanged: <a href='t.me/addstickers/{pack_name}'>here</a>",
-        disable_preview=True,
-    )
+    await response.edit(text=f"Kanged: <a href='t.me/addstickers/{pack_name}'>here</a>", disable_preview=True)
 
 
 if extra_config.USE_LEGACY_KANG:

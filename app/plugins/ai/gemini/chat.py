@@ -1,10 +1,17 @@
 import pickle
+import traceback
 
 from google.genai.chats import AsyncChat
 from pyrogram.enums import ChatType, ParseMode
 from ub_core import BOT, Convo, Message, bot
 
-from app.plugins.ai.gemini import Response, async_client, export_history, get_model_config
+from app.plugins.ai.gemini import (
+    async_client,
+    execute_and_send_function_call,
+    export_history,
+    get_model_config,
+    loop_until_sent,
+)
 from app.plugins.ai.gemini.code import create_plugin
 from app.plugins.ai.gemini.utils import create_prompts, run_basic_check
 
@@ -28,7 +35,7 @@ async def ai_chat(bot: BOT, message: Message):
 
     """
     chat = async_client.chats.create(**get_model_config(message.flags))
-    await do_convo(chat=chat, message=message)
+    await do_convo(chat=chat, prompt_message=message)
 
 
 @bot.add_cmd(cmd="lh")
@@ -64,80 +71,77 @@ async def history_chat(bot: BOT, message: Message):
 
     if file_name == expected_name:
         chat = async_client.chats.create(**get_model_config(message.flags), history=history)
-        await do_convo(chat=chat, message=message)
+        await do_convo(chat=chat, prompt_message=message)
     else:
         await create_plugin(bot, message, history)
 
 
-CONVO_CACHE: dict[str, Convo] = {}
+CHAT_CONVO_CACHE: dict[str, Convo] = {}
 
 
-async def do_convo(chat: AsyncChat, message: Message):
-    chat_id = message.chat.id
+def pop_old_convo(message: Message):
+    old_conversation = CHAT_CONVO_CACHE.get(message.unique_chat_user_id)
+    if old_conversation in Convo.CONVO_DICT[message.chat.id]:
+        Convo.CONVO_DICT[message.chat.id].remove(old_conversation)
 
-    old_conversation = CONVO_CACHE.get(message.unique_chat_user_id)
 
-    if old_conversation in Convo.CONVO_DICT[chat_id]:
-        Convo.CONVO_DICT[chat_id].remove(old_conversation)
+async def do_convo(chat: AsyncChat, prompt_message: Message):
+    pop_old_convo(prompt_message)
 
-    if message.chat.type in (ChatType.PRIVATE, ChatType.BOT):
+    if prompt_message.chat.type in (ChatType.PRIVATE, ChatType.BOT):
         reply_to_user_id = None
     else:
-        reply_to_user_id = message._client.me.id
+        reply_to_user_id = prompt_message._client.me.id
 
-    conversation_object = Convo(
-        client=message._client,
-        chat_id=chat_id,
+    async with Convo(
+        client=prompt_message._client,
+        chat_id=prompt_message.chat.id,
         timeout=300,
         check_for_duplicates=False,
-        from_user=message.from_user.id,
+        from_user=prompt_message.from_user.id,
         reply_to_user_id=reply_to_user_id,
-    )
+    ) as conversation:
+        CHAT_CONVO_CACHE[prompt_message.unique_chat_user_id] = conversation
+        wait_for_response = False
 
-    CONVO_CACHE[message.unique_chat_user_id] = conversation_object
+        while True:
+            try:
+                if wait_for_response:
+                    prompt_message = await conversation.get_response()
 
-    try:
-        async with conversation_object:
-            prompt = await create_prompts(message)
-            reply_to_id = message.id
-
-            while True:
-                ai_response = await chat.send_message(prompt)
-                prompt_message = await send_and_get_resp(
-                    convo_obj=conversation_object, response=ai_response, reply_to_id=reply_to_id
-                )
-
-                try:
-                    prompt = await create_prompts(prompt_message, is_chat=True, check_size=False)
-                except Exception as e:
-                    prompt_message = await send_and_get_resp(conversation_object, str(e), reply_to_id=reply_to_id)
-                    prompt = await create_prompts(prompt_message, is_chat=True, check_size=False)
+                prompt = await create_prompts(prompt_message, is_chat=wait_for_response, check_size=False)
 
                 reply_to_id = prompt_message.id
 
-    except TimeoutError:
-        await export_history(chat, message)
-    finally:
-        CONVO_CACHE.pop(message.unique_chat_user_id, 0)
+                ai_response = await loop_until_sent(chat=chat, tg_convo=conversation, parts=prompt)
 
+                if ai_response.function_call:
+                    ai_response = await execute_and_send_function_call(
+                        chat=chat, tg_convo=conversation, ai_response=ai_response
+                    )
 
-async def send_and_get_resp(convo_obj: Convo, response, reply_to_id: int | None = None) -> Message:
-    response = Response(response)
+                if ai_response.text.strip():
+                    await conversation.send_message(
+                        text=f"**>•><**\n{ai_response.quoted_text()}",
+                        reply_to_id=reply_to_id,
+                        parse_mode=ParseMode.MARKDOWN,
+                        disable_preview=True,
+                    )
 
-    if text := response.quoted_text():
-        await convo_obj.send_message(
-            text=f"**>•><**\n{text}", reply_to_id=reply_to_id, parse_mode=ParseMode.MARKDOWN, disable_preview=True
-        )
+                for image in ai_response.all_image_files:
+                    await conversation.send_photo(photo=image, reply_to_id=reply_to_id)
 
-    if response.image:
-        await convo_obj.send_photo(photo=response.image_file, reply_to_id=reply_to_id)
+                for audio in ai_response.all_audio_files:
+                    await conversation.send_voice(
+                        voice=audio, waveform=audio.waveform, reply_to_id=reply_to_id, duration=audio.duration
+                    )
 
-    if response.audio:
-        await convo_obj.send_voice(
-            voice=response.audio_file,
-            waveform=response.audio_file.waveform,
-            reply_to_id=reply_to_id,
-            duration=response.audio_file.duration,
-        )
+            except TimeoutError:
+                CHAT_CONVO_CACHE.pop(prompt_message.unique_chat_user_id, 0)
+                await export_history(chat, prompt_message)
+                return
 
-    return await convo_obj.get_response()
+            except Exception:
+                await conversation.send_message(text=f"```\n{traceback.format_exc()}```", reply_to_id=reply_to_id)
+
+            wait_for_response = True

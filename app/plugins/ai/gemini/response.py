@@ -2,7 +2,7 @@ import asyncio
 import io
 import pickle
 import wave
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from functools import cached_property
 
 import numpy as np
@@ -10,9 +10,8 @@ from google.genai import types
 from google.genai.chats import AsyncChat
 from google.genai.errors import ClientError
 from pyrogram.enums import ParseMode
-from ub_core import LOGGER, CustomDB, Message, bot, utils
-
-DB_SETTINGS = CustomDB["COMMON_SETTINGS"]
+from ub_core import LOGGER, Message
+from ub_core.utils import run_unknown_callable, wrap_in_block_quote
 
 FUNCTION_CALL_MAP: dict[str, Callable] = {}
 
@@ -24,7 +23,7 @@ def wrap_in_quote(text: str, mode: ParseMode = ParseMode.MARKDOWN):
             if "```" in _text:
                 return _text
             else:
-                return utils.wrap_in_block_quote(text=_text, quote_delimiter="**>", end_delimiter="<**")
+                return wrap_in_block_quote(text=_text, quote_delimiter="**>", end_delimiter="<**")
         case ParseMode.HTML:
             return f"<blockquote expandable=true>{_text}</blockquote>"
         case _:
@@ -50,7 +49,7 @@ def save_wave_file(pcm, channels=1, rate=24000, sample_width=2) -> io.BytesIO:
 
     # fmt: off
     data = [
-        int(min(255,np.abs(samples[i : i + chunk_size]).mean() / (2 ** (8 * sample_width - 1)) * 255))
+        int(min(255, np.abs(samples[i: i + chunk_size]).mean() / (2 ** (8 * sample_width - 1)) * 255))
         for i in range(0, len(samples), chunk_size)
     ]
     # fmt: on
@@ -79,13 +78,6 @@ class Response:
                     self.first_parts = self.first_content.parts
                     self.first_part = self.first_parts[0]
 
-        for part in self.first_parts:
-            if part.inline_data:
-                self._inline_data = part.inline_data
-                break
-        else:
-            self._inline_data = None
-
         self.is_empty = not self.first_parts
         self.failed_str = "`Error: Query Failed.`"
 
@@ -93,37 +85,67 @@ class Response:
     def text(self) -> str:
         return "\n".join(part.text for part in self.first_parts if isinstance(part.text, str))
 
-    @property
+    @cached_property
     def image(self) -> bool:
-        if self._inline_data and self._inline_data.mime_type:
-            return "image" in self._inline_data.mime_type
-        return False
+        for part in self.first_parts:
+            if part.inline_data and "image" in part.inline_data.mime_type:
+                return True
+
+    @cached_property
+    def image_file(self) -> io.BytesIO | None:
+        if not self.image:
+            return
+
+        for part in self.first_parts:
+            if part.inline_data and "image" in part.inline_data.mime_type:
+                file = io.BytesIO(part.inline_data.data)
+                file.name = "photo.png"
+                return file
 
     @property
-    def image_file(self) -> io.BytesIO | None:
-        inline_data = self._inline_data
-
-        if inline_data:
-            file = io.BytesIO(inline_data.data)
-            file.name = "photo.png"
-            return file
-
+    def all_image_files(self) -> Generator[io.BytesIO, None, None]:
+        for part in self.first_parts:
+            if part.inline_data and "image" in part.inline_data.mime_type:
+                file = io.BytesIO(part.inline_data.data)
+                file.name = "photo.png"
+                yield file
         return None
 
-    @property
+    @cached_property
     def audio(self) -> bool:
-        if self._inline_data and self._inline_data.mime_type:
-            return "audio" in self._inline_data.mime_type
-        return False
+        for part in self.first_parts:
+            if part.inline_data and "audio" in part.inline_data.mime_type:
+                return True
 
-    @property
+    @cached_property
     def audio_file(self) -> io.BytesIO | None:
-        inline_data = self._inline_data
-        return save_wave_file(inline_data.data) if inline_data else None
+        if not self.audio:
+            return
+
+        for part in self.first_parts:
+            if part.inline_data and "audio" in part.inline_data.mime_type:
+                return save_wave_file(part.inline_data.data)
 
     @property
-    def function_call(self):
-        return bool(self.first_part.function_call)
+    def all_audio_files(self) -> Generator[io.BytesIO, None, None]:
+        for part in self.first_parts:
+            if part.inline_data and "audio" in part.inline_data.mime_type:
+                yield save_wave_file(part.inline_data.data)
+        return None
+
+    @cached_property
+    def function_call(self) -> bool:
+        for part in self.first_parts:
+            if part.function_call:
+                return True
+        else:
+            return False
+
+    @cached_property
+    def thought_signature_part(self) -> types.Part:
+        for part in self.first_parts:
+            if part.thought_signature is not None:
+                return part
 
     def quoted_text(self, quote_mode: ParseMode | None = ParseMode.MARKDOWN) -> str:
         if self.is_empty:
@@ -148,46 +170,39 @@ class Response:
             return self.quoted_text(quote_mode=quote_mode)
 
     async def execute_function_call(self):
-        call = self.first_part.function_call
-        func_name = call.name
+        if not self.function_call:
+            return []
 
-        LOGGER.info(call)
+        function_responses = []
 
-        if func_name in FUNCTION_CALL_MAP:
-            try:
-                result = await utils.run_unknown_callable(FUNCTION_CALL_MAP[func_name], **call.args)
-            except Exception as e:
-                LOGGER.error(e, exec_info=True)
-                result = f"Error occurred while running function: {e}"
+        # if self.thought_signature_part:
+        #    function_responses.append(self.thought_signature_part)
 
-        else:
-            result = "Error: Function not found in backend function map."
+        for part in self.first_parts:
+            if part.function_call is None:
+                continue
 
-        return [self.first_part, types.Part.from_function_response(name=func_name, response={"result": result})]
+            call = part.function_call
+            LOGGER.info(call)
 
+            if call.name in FUNCTION_CALL_MAP:
+                try:
+                    function = FUNCTION_CALL_MAP[call.name]
+                    output = await run_unknown_callable(function, **call.args)
+                    result = {"output": output}
+                except (KeyboardInterrupt, asyncio.exceptions.CancelledError):
+                    raise
+                except Exception as e:
+                    LOGGER.error(e, exc_info=True)
+                    result = {"error": f"Error occurred while running function: {e}"}
 
-async def send_message_with_retry_delay_guard(chat, response, parts, tg_convo) -> Response:
-    max_calls = 0
+            else:
+                result = {"error": "Error: Function not found in backend function maps."}
 
-    while max_calls < 10:
-        try:
-            if response and response.function_call:
-                parts = await response.execute_function_call()
+            function_response = types.FunctionResponse(id=call.id, name=call.name, response=result)
+            function_responses.append(types.Part(function_response=function_response))
 
-            response = Response(await chat.send_message(message=parts))
-
-        except ClientError as e:
-            delay = get_retry_delay(e.details)
-            await tg_convo.send_message(f"Gemini API returned flood wait of {delay}s sleeping...")
-            await asyncio.sleep(delay + 10)
-            response = Response(await chat.send_message(message=parts))
-
-        await asyncio.sleep(10)
-
-        max_calls += 1
-
-        if response.text:
-            return response
+        return function_responses
 
 
 def get_retry_delay(response_json: dict) -> float:
@@ -200,9 +215,43 @@ def get_retry_delay(response_json: dict) -> float:
         return 0
 
 
+async def loop_until_sent(chat, parts: list[types.Part], tg_convo, max_retries: int = 10):
+    retries = 0
+    while retries < max_retries:
+        try:
+            return Response(await chat.send_message(message=parts))
+        except ClientError as e:
+            delay = get_retry_delay(e.details)
+            if not delay:
+                raise
+            await tg_convo.send_message(f"Gemini API returned flood wait of {delay}s sleeping...")
+            await asyncio.sleep(delay + 10)
+        retries += 1
+    else:
+        raise OverflowError(f"Max number of retries reached: {retries}")
+
+
+async def execute_and_send_function_call(chat, tg_convo, ai_response):
+    total_function_calls = 0
+
+    while ai_response.function_call and total_function_calls < 10:
+        parts = await ai_response.execute_function_call()
+
+        ai_response = await loop_until_sent(chat=chat, parts=parts, tg_convo=tg_convo)
+
+        if not ai_response.function_call and ai_response.first_candidate.finish_reason:
+            return ai_response
+
+        total_function_calls += 1
+
+        LOGGER.info(f"{total_function_calls=}")
+    else:
+        raise OverflowError(f"Max number of function calls reached: {total_function_calls}")
+
+
 async def export_history(chat: AsyncChat, message: Message, name: str = None, caption: str = None):
     doc = io.BytesIO(pickle.dumps(chat.get_history(curated=True)))
     doc.name = name or "AI_Chat_History.pkl"
     if caption is None:
         Response(await chat.send_message("Summarize our Conversation into one line.")).quoted_text()
-    await bot.send_document(chat_id=message.from_user.id, document=doc, caption=caption)
+    await message._client.send_document(chat_id=message.from_user.id, document=doc, caption=caption)

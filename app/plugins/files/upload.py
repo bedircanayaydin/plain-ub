@@ -1,20 +1,11 @@
 import asyncio
 import glob
 import os
-import time
 from functools import partial
 from typing import Union
 
 from pyrogram.types import ReplyParameters
-from ub_core.utils import (
-    Download,
-    DownloadedFile,
-    MediaType,
-    check_audio,
-    get_duration,
-    progress,
-    take_ss,
-)
+from ub_core.utils import Download, DownloadedFile, MediaType, check_audio, get_duration, progress, take_ss
 
 from app import BOT, Config, Message
 
@@ -33,11 +24,7 @@ async def video_upload(bot: BOT, file: DownloadedFile, has_spoiler: bool) -> UPL
             has_spoiler=has_spoiler,
         )
     return partial(
-        bot.send_video,
-        thumb=thumb,
-        video=file.path,
-        duration=await get_duration(file.path),
-        has_spoiler=has_spoiler,
+        bot.send_video, thumb=thumb, video=file.path, duration=await get_duration(file.path), has_spoiler=has_spoiler
     )
 
 
@@ -96,17 +83,13 @@ async def upload(bot: BOT, message: Message):
     response = await message.reply("checking input...")
 
     if input in Config.CMD_DICT:
-        await message.reply_document(document=Config.CMD_DICT[input].cmd_path)
+        await message.reply_document(document=Config.CMD_DICT[input].path.as_posix())
         await response.delete()
         return
 
     elif input.startswith("http") and not file_exists(input):
         try:
-            async with Download(
-                url=input,
-                dir=os.path.join("downloads", str(time.time())),
-                message_to_edit=response,
-            ) as dl_obj:
+            async with Download(url=input, dir=Config.TEMP_DOWNLOAD_PATH(), message_to_edit=response) as dl_obj:
                 if size_over_limit(dl_obj.size, client=bot):
                     await response.edit("<b>Aborted</b>, File size exceeds TG Limits!!!")
                     return
@@ -178,11 +161,7 @@ async def upload_to_tg(file: DownloadedFile, message: Message, response: Message
     progress_args = (response, "Uploading...", file.path)
 
     if "-d" in message.flags:
-        upload_method = partial(
-            message._client.send_document,
-            document=file.path,
-            disable_content_type_detection=True,
-        )
+        upload_method = partial(message._client.send_document, document=file.path, disable_content_type_detection=True)
     else:
         upload_method: UPLOAD_TYPES = await FILE_TYPE_MAP[file.type](
             bot=message._client, file=file, has_spoiler="-s" in message.flags

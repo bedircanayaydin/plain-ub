@@ -15,7 +15,7 @@ async def disable_su(bot: BOT, message: Message):
     if u_id in Config.DISABLED_SUPERUSERS:
         return
 
-    Config.DISABLED_SUPERUSERS.append(u_id)
+    Config.DISABLED_SUPERUSERS.add(u_id)
 
     await SUDO_USERS.add_data({"_id": u_id, "disabled": True})
 

@@ -10,7 +10,7 @@ BOT_NAME = getenv("BOT_NAME", "PLAIN-UB")
 
 CUSTOM_PACK_NAME = getenv("CUSTOM_PACK_NAME")
 
-DISABLED_SUPERUSERS: list[int] = []
+# DISABLED_SUPERUSERS: set[int] = set()
 
 FBAN_LOG_CHANNEL: int = int(getenv("FBAN_LOG_CHANNEL") or getenv("LOG_CHAT"))
 

@@ -2,7 +2,6 @@ import asyncio
 import os
 import random
 import shutil
-import time
 from io import BytesIO
 from pathlib import Path
 
@@ -32,7 +31,7 @@ async def save_sticker(file: Path | BytesIO) -> str:
     )
 
     if isinstance(file, Path) and file.is_file():
-        shutil.rmtree(file, ignore_errors=True)
+        shutil.rmtree(file.parent, ignore_errors=True)
 
     return sent_file.document.file_id
 
@@ -62,7 +61,7 @@ async def video_kang(message: Message, ff=False) -> tuple[str, None]:
     if video.file_size > 5242880:
         raise MemoryError("File Size exceeds 5MB.")
 
-    download_path = Path("downloads") / str(time.time())
+    download_path = Config.TEMP_DOWNLOAD_PATH()
     input_file = download_path / "input.mp4"
     output_file = download_path / "sticker.webm"
 

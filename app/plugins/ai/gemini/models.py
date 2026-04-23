@@ -7,8 +7,8 @@ DB_SETTINGS = CustomDB["COMMON_SETTINGS"]
 
 
 class Models:
-    CODE_MODEL = "gemini-2.5-flash"
-    TEXT_MODEL = "gemini-2.5-flash"
+    CODE_MODEL = "gemini-3.1-flash-lite-preview"
+    TEXT_MODEL = "gemini-3.1-flash-lite-preview"
     IMAGE_MODEL = "gemini-pro-latest"
     AUDIO_MODEL = "gemini-2.5-flash-preview-tts"
 

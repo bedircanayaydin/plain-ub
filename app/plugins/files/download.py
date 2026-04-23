@@ -2,9 +2,9 @@ import asyncio
 import time
 from pathlib import Path
 
-from ub_core.utils import Download, DownloadedFile, get_filename_from_mime,get_tg_media_details, progress
+from ub_core.utils import Download, DownloadedFile, get_filename_from_mime, get_tg_media_details, progress
 
-from app import BOT, Message, bot
+from app import BOT, Message, bot, Config
 
 
 @bot.add_cmd(cmd="download")
@@ -20,12 +20,11 @@ async def down_load(bot: BOT, message: Message):
     response = await message.reply("Checking Input...")
 
     if (not message.replied or not message.replied.media) and not message.input:
-        await response.edit(
-            "Invalid input...\nReply to a message containing media or give a link with cmd."
-        )
+        await response.edit("Invalid input...\nReply to a message containing media or give a link with cmd.")
         return
 
-    dl_dir_name = Path("downloads") / str(time.time())
+    download_dir = Config.TEMP_DOWNLOAD_PATH()
+    download_dir.mkdir()
 
     await response.edit("Input verified....Starting Download...")
 
@@ -38,10 +37,7 @@ async def down_load(bot: BOT, message: Message):
             file_name = message.filtered_input
 
         download_coro = telegram_download(
-            message=message.replied,
-            response=response,
-            dir_name=dl_dir_name,
-            file_name=file_name,
+            message=message.replied, response=response, dir_name=download_dir, file_name=file_name
         )
 
     else:
@@ -53,17 +49,11 @@ async def down_load(bot: BOT, message: Message):
 
         if url.startswith("https://t.me/"):
             download_coro = telegram_download(
-                message=await bot.get_messages(link=url),
-                response=response,
-                dir_name=dl_dir_name,
-                file_name=file_name,
+                message=await bot.get_messages(link=url), response=response, dir_name=download_dir, file_name=file_name
             )
         else:
             dl_obj: Download = await Download.setup(
-                url=url,
-                dir=dl_dir_name,
-                message_to_edit=response,
-                custom_file_name=file_name,
+                url=url, dir=download_dir, message_to_edit=response, custom_file_name=file_name
             )
             download_coro = dl_obj.download()
 
@@ -108,9 +98,5 @@ async def telegram_download(
 
     progress_args = (response, "Downloading...", media_obj.path)
 
-    await message.download(
-        file_name=media_obj.path,
-        progress=progress,
-        progress_args=progress_args,
-    )
+    await message.download(file_name=media_obj.path, progress=progress, progress_args=progress_args)
     return media_obj

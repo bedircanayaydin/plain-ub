@@ -3,7 +3,6 @@ from pyrogram.types import InputMediaAudio, InputMediaPhoto
 from ub_core import BOT, Message, bot, utils
 
 from app.plugins.ai.gemini import Response, async_client, get_model_config
-from app.plugins.ai.gemini.code import upload_codebase
 from app.plugins.ai.gemini.utils import create_prompts, run_basic_check
 
 
@@ -35,8 +34,6 @@ async def question(bot: BOT, message: Message):
         .ai -sp TTS the following conversation between Joe and Jane:
             Joe: How's it going today Jane?
             Jane: Not too bad, how about you?
-
-        .ai -wc how does the -wc flag in .ai work, what are the potential usages?
     """
 
     reply = message.replied
@@ -56,9 +53,6 @@ async def question(bot: BOT, message: Message):
         return
 
     kwargs = get_model_config(flags=message.flags)
-
-    if "-wc" in message.flags:
-        prompts.append(await upload_codebase())
 
     response = await async_client.models.generate_content(contents=prompts, **kwargs)
 
