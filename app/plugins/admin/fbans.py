@@ -19,7 +19,7 @@ FBAN_REGEX = BASIC_FILTER & filters.regex(
     r"start a federation ban|"
     r"FedBan Reason update|"
     r"FedBan reason updated|"
-    r"Would you like to update this reason)",
+    r"Would you like to update this reason)"
     r"User Banned from Federation",
     re.IGNORECASE,
 )
