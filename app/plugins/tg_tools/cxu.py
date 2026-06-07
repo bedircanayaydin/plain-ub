@@ -17,7 +17,7 @@ POST_DB = CustomDB["COMMON_SETTINGS"]
 
 POST_CHANNEL = -1002651613037
 
-XPOSED_URL = "https://modules.lsposed.org/modules.json"
+XPOSED_URL = "https://backup.modules.lsposed.org/modules.json"
 
 
 @BOT.register_worker(interval=10800, name="xposed-updates")
