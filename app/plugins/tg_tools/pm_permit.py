@@ -21,7 +21,7 @@ async def init_task():
     await migrate_keys()
     guard = (await SETTINGS.find_one({"_id": SETTING_KEY})) or {}
     extra_config.PM_GUARD = guard.get("value", False)
-    extra_config.PM_GUARD_TEXT = guard.get("warn_message", "You are not authorised to PM.")
+    extra_config.PM_GUARD_TEXT = guard.get("warn_message", "Use English or translate then After the first message, please read the PM rules: @PmRule Whoever you are, you are subject to the rules, the third message can automatically be considered a reason for blocking. ")
 
     [ALLOWED_USERS.add(user_id["_id"]) async for user_id in PM_USERS.find()]
 
