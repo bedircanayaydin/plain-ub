@@ -1,5 +1,3 @@
-aiohttp
-
 [tool.ruff]
 extend = "/data/data/com.termux/files/home/ruff.toml"
 
